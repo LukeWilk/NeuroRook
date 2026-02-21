@@ -1,0 +1,22 @@
+# Android module .gitignore
+
+# Build output
+/build/
+
+# Gradle
+.gradle/
+
+# Local config
+local.properties
+
+# Native build artifacts
+.cxx/
+.externalNativeBuild/
+captures
+
+# Keystores
+*.keystore
+*.jks
+
+# Logs
+*.log
