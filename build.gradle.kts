@@ -12,3 +12,14 @@ plugins {
 
 // Set project version from gradle.properties (version key)
 version = findProperty("version") as String
+
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
+        credentials {
+            username = findProperty("githubUser") as String? ?: ""
+            password = findProperty("githubToken") as String? ?: ""
+        }
+    }
+}

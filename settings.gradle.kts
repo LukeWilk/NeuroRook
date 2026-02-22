@@ -16,6 +16,8 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
+    val githubUser = System.getenv("githubUser") ?: error("Environment variable githubUser is not set!")
+    val githubToken = System.getenv("githubToken") ?: error("Environment variable githubToken is not set!")
     repositories {
         google {
             mavenContent {
@@ -25,6 +27,17 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven {
+            url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
+            metadataSources {
+                mavenPom()
+                artifact()
+            }
+            credentials {
+                username = githubUser
+                password = githubToken
+            }
+        }
     }
 }
 
@@ -34,3 +47,5 @@ plugins {
 
 include(":composeApp")
 include(":androidApp")
+include(":hardwareBackend")
+include(":hardwareBackendRunner")
