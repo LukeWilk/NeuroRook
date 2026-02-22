@@ -15,9 +15,15 @@ pluginManagement {
     }
 }
 
+val localProperties = java.util.Properties()
+val localPropertiesFile = java.io.File(rootDir, "local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val githubUser = localProperties.getProperty("githubUser") ?: error("Property githubUser is not set in local.properties!")
+val githubToken = localProperties.getProperty("githubToken") ?: error("Property githubToken is not set in local.properties!")
+
 dependencyResolutionManagement {
-    val githubUser = System.getenv("githubUser") ?: error("Environment variable githubUser is not set!")
-    val githubToken = System.getenv("githubToken") ?: error("Environment variable githubToken is not set!")
     repositories {
         google {
             mavenContent {

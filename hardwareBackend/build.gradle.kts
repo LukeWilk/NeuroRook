@@ -17,6 +17,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+                implementation("co.touchlab:kermit:2.0.0")
             }
         }
         val commonTest by getting {

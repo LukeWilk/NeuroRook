@@ -3,6 +3,7 @@ package io.github.lukewilk.hardware
 import brainflow.BoardIds
 import brainflow.BoardShim
 import brainflow.BrainFlowInputParams
+import co.touchlab.kermit.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.emptyFlow
  * This is a skeleton; real data streaming will be added later.
  */
 class BrainFlowHardwareConnector : HardwareConnector {
+    private val logger = Logger.withTag("BrainFlowHardwareConnector")
     private var connected = false
     private var boardShim: BoardShim? = null
 
@@ -34,15 +36,14 @@ class BrainFlowHardwareConnector : HardwareConnector {
         try {
             val params = BrainFlowInputParams()
             params.serial_port = serialPort
-            println("Attempting to connect: boardId=$boardId, serialPort=$serialPort, params=$params")
+            logger.i { "Attempting to connect: boardId=$boardId, serialPort=$serialPort, params=$params" }
 
             boardShim = BoardShim(boardId, params)
             boardShim?.prepare_session()
             connected = true
             return true
         } catch (e: Exception) {
-            println("BrainFlow connection error on $serialPort: ${e.message}")
-            e.printStackTrace()
+            logger.e(e) { "BrainFlow connection error on $serialPort: ${e.message}" }
             connected = false
         }
         return false
