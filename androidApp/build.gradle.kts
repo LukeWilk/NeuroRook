@@ -14,6 +14,9 @@ android {
     defaultConfig {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Centralized versioning from root gradle.properties
+        versionCode = (findProperty("versionCode") as String).toInt()
+        versionName = findProperty("version") as String
     }
 
     buildTypes {

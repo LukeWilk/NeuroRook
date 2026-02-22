@@ -9,3 +9,6 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.androidKmpLibrary) apply false
 }
+
+// Set project version from gradle.properties (version key)
+version = findProperty("version") as String
