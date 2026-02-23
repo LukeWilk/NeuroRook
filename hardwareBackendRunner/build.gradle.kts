@@ -1,6 +1,7 @@
 plugins {
     id("application")
     kotlin("jvm")
+    id("org.jetbrains.kotlinx.kover")
 }
 
 dependencies {

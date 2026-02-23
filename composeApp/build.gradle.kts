@@ -19,6 +19,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.androidKmpLibrary)
+    id("org.jetbrains.kotlinx.kover")
 }
 
 kotlin {

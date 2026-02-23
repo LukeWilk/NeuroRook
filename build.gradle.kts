@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.androidKmpLibrary) apply false
+    id("org.jetbrains.kotlinx.kover") version "0.7.5"
 }
 
 // Set project version from gradle.properties (version key)
@@ -22,4 +23,12 @@ repositories {
             password = findProperty("githubToken") as String? ?: ""
         }
     }
+}
+
+dependencies {
+    kover(project(":androidApp"))
+    kover(project(":composeApp"))
+    kover(project(":hardwareBackend"))
+    kover(project(":hardwareBackendRunner"))
+    kover(project(":shared"))
 }
