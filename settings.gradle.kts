@@ -1,4 +1,5 @@
 rootProject.name = "NeuroRook"
+include(":shared")
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

@@ -28,6 +28,7 @@ kotlin {
         val jvmMain by getting {
             dependencies {
                 implementation("org.brainflow:brainflow:5.20.1")
+                implementation(project(":shared"))
             }
         }
     }
