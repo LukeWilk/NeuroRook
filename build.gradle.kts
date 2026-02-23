@@ -25,6 +25,23 @@ repositories {
     }
 }
 
+koverReport {
+    filters {
+        excludes {
+            classes (
+                "io.github.lukewilk.hardware.MainKt",
+                "io.github.lukewilk.hardware.MainKt",
+                "io.github.lukewilk.hardware.MainKt\$main\$1",
+                "neurorook.composeapp.generated.resources.ActualResourceCollectorsKt",
+                "neurorook.composeapp.generated.resources.Res",
+                "io.github.lukewilk.MainKt",
+                "io.github.lukewilk.ComposableSingletons\$MainKt",
+                "io.github.lukewilk.ComposableSingletons\$AppKt"
+            )
+        }
+    }
+}
+
 dependencies {
     kover(project(":androidApp"))
     kover(project(":composeApp"))

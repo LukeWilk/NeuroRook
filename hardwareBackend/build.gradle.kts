@@ -34,3 +34,12 @@ kotlin {
         }
     }
 }
+
+koverReport {
+    filters {
+        excludes {
+            classes (
+            )
+        }
+    }
+}

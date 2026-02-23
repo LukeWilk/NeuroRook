@@ -21,3 +21,13 @@ kotlin {
         val jvmTest by getting
     }
 }
+
+koverReport {
+    filters {
+        excludes {
+            classes (
+                // Add any generated or entry-point classes if needed
+            )
+        }
+    }
+}

@@ -38,6 +38,16 @@ android {
     }
 }
 
+koverReport {
+    filters {
+        excludes {
+            classes (
+                // Add any generated or entry-point classes if needed
+            )
+        }
+    }
+}
+
 dependencies {
     implementation(projects.composeApp)
 

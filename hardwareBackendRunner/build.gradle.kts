@@ -13,3 +13,12 @@ dependencies {
 application {
     mainClass.set("io.github.lukewilk.hardware.MainKt")
 }
+
+koverReport {
+    filters {
+        excludes {
+            classes (
+            )
+        }
+    }
+}

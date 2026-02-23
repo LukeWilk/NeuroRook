@@ -64,5 +64,17 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
         }
+        jvmTest.dependencies {
+            implementation("org.jetbrains.compose.ui:ui-test-junit4:1.10.0")
+        }
     }
+}
+
+koverReport {
+        filters {
+                excludes {
+                    classes(
+                    )
+                }
+        }
 }
