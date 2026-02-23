@@ -1,4 +1,5 @@
 rootProject.name = "NeuroRook"
+include(":shared")
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -15,6 +16,14 @@ pluginManagement {
     }
 }
 
+val localProperties = java.util.Properties()
+val localPropertiesFile = java.io.File(rootDir, "local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+val GHUSER = localProperties.getProperty("GHUSER") ?: error("Property GHUSER is not set in local.properties!")
+val GHTOKEN = localProperties.getProperty("GHTOKEN") ?: error("Property GHTOKEN is not set in local.properties!")
+
 dependencyResolutionManagement {
     repositories {
         google {
@@ -25,6 +34,17 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven {
+            url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
+            metadataSources {
+                mavenPom()
+                artifact()
+            }
+            credentials {
+                username = GHUSER
+                password = GHTOKEN
+            }
+        }
     }
 }
 
@@ -34,3 +54,5 @@ plugins {
 
 include(":composeApp")
 include(":androidApp")
+include(":hardwareBackend")
+include(":hardwareBackendRunner")

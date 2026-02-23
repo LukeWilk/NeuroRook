@@ -19,6 +19,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.androidKmpLibrary)
+    id("org.jetbrains.kotlinx.kover")
 }
 
 kotlin {
@@ -63,5 +64,17 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
         }
+        jvmTest.dependencies {
+            implementation("org.jetbrains.compose.ui:ui-test-junit4:1.10.0")
+        }
     }
+}
+
+koverReport {
+        filters {
+                excludes {
+                    classes(
+                    )
+                }
+        }
 }

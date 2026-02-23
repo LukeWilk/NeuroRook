@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
+    id("org.jetbrains.kotlinx.kover")
 }
 
 android {
@@ -34,6 +35,16 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+}
+
+koverReport {
+    filters {
+        excludes {
+            classes (
+                // Add any generated or entry-point classes if needed
+            )
+        }
     }
 }
 
