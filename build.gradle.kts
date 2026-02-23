@@ -19,8 +19,8 @@ repositories {
     maven {
         url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
         credentials {
-            username = findProperty("githubUser") as String? ?: ""
-            password = findProperty("githubToken") as String? ?: ""
+            username = findProperty("GHUSER") as String? ?: ""
+            password = findProperty("GHTOKEN") as String? ?: ""
         }
     }
 }

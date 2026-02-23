@@ -1,0 +1,29 @@
+# Release Drafter config
+name-template: 'v$NEXT_MAJOR_VERSION.$NEXT_MINOR_VERSION.$NEXT_PATCH_VERSION'
+tag-template: 'v$NEXT_MAJOR_VERSION.$NEXT_MINOR_VERSION.$NEXT_PATCH_VERSION'
+
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'bug'
+      - 'fix'
+  - title: '🛠 Maintenance'
+    labels:
+      - 'chore'
+      - 'maintenance'
+
+change-template: '- $TITLE (#$PR)
+'
+
+exclude-labels:
+  - 'skip-changelog'
+
+sort-by: 'merged_at'
+sort-direction: 'descending'
+
+# Optionally, you can add more customization here
+

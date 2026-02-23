@@ -21,8 +21,8 @@ val localPropertiesFile = java.io.File(rootDir, "local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val githubUser = localProperties.getProperty("githubUser") ?: error("Property githubUser is not set in local.properties!")
-val githubToken = localProperties.getProperty("githubToken") ?: error("Property githubToken is not set in local.properties!")
+val GHUSER = localProperties.getProperty("GHUSER") ?: error("Property GHUSER is not set in local.properties!")
+val GHTOKEN = localProperties.getProperty("GHTOKEN") ?: error("Property GHTOKEN is not set in local.properties!")
 
 dependencyResolutionManagement {
     repositories {
@@ -41,8 +41,8 @@ dependencyResolutionManagement {
                 artifact()
             }
             credentials {
-                username = githubUser
-                password = githubToken
+                username = GHUSER
+                password = GHTOKEN
             }
         }
     }
