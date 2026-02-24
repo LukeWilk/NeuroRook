@@ -21,8 +21,8 @@ val localPropertiesFile = java.io.File(rootDir, "local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val GHUSER = localProperties.getProperty("GHUSER")
-val GHTOKEN = localProperties.getProperty("GHTOKEN")
+val GHUSER = System.getenv("GHUSER") ?: localProperties.getProperty("GHUSER")
+val GHTOKEN = System.getenv("GHTOKEN") ?: localProperties.getProperty("GHTOKEN")
 
 dependencyResolutionManagement {
     repositories {
@@ -34,19 +34,6 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        if (GHUSER != null && GHTOKEN != null) {
-            maven {
-                url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
-                metadataSources {
-                    mavenPom()
-                    artifact()
-                }
-                credentials {
-                    username = GHUSER
-                    password = GHTOKEN
-                }
-            }
-        }
     }
 }
 
