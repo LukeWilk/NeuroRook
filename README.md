@@ -1,6 +1,6 @@
 [![Kover Coverage](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml/badge.svg)](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml)
 
-<img src="./resources/neuroRook.svg" width="140" class="center">
+<img src="./resources/neuroRook.svg" width="140">
 
 ## NeuroRook
 
