@@ -21,8 +21,8 @@ val localPropertiesFile = java.io.File(rootDir, "local.properties")
 if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
-val GHUSER = localProperties.getProperty("GHUSER") ?: error("Property GHUSER is not set in local.properties!")
-val GHTOKEN = localProperties.getProperty("GHTOKEN") ?: error("Property GHTOKEN is not set in local.properties!")
+val GHUSER = localProperties.getProperty("GHUSER")
+val GHTOKEN = localProperties.getProperty("GHTOKEN")
 
 dependencyResolutionManagement {
     repositories {
@@ -34,15 +34,17 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven {
-            url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
-            metadataSources {
-                mavenPom()
-                artifact()
-            }
-            credentials {
-                username = GHUSER
-                password = GHTOKEN
+        if (GHUSER != null && GHTOKEN != null) {
+            maven {
+                url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
+                metadataSources {
+                    mavenPom()
+                    artifact()
+                }
+                credentials {
+                    username = GHUSER
+                    password = GHTOKEN
+                }
             }
         }
     }
