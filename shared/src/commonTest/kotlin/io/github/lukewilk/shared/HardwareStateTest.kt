@@ -28,5 +28,12 @@ class HardwareStateTest {
         assertEquals(state1.hashCode(), state2.hashCode(), "Hash codes should match for equal states")
         assertNotEquals(state1, state3, "States with different values should not be equal")
     }
-}
 
+    @Test
+    fun samplingRateIsSetCorrectly() {
+        val stateSynthetic = HardwareState(connected = true, synthetic = true, samplingRateHz = 120)
+        assertEquals(120, stateSynthetic.samplingRateHz, "Synthetic board should have 120Hz sampling rate")
+        val stateHardware = HardwareState(connected = true, synthetic = false, samplingRateHz = 256)
+        assertEquals(256, stateHardware.samplingRateHz, "Hardware board should have correct sampling rate")
+    }
+}
