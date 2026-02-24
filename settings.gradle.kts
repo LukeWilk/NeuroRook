@@ -34,6 +34,15 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        if (GHUSER != null && GHTOKEN != null) {
+            maven {
+                url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
+                credentials {
+                    username = GHUSER
+                    password = GHTOKEN
+                }
+            }
+        }
     }
 }
 
