@@ -26,6 +26,9 @@ jobs:
         run: npx semantic-release
       - name: Build artifacts
         run: ./gradlew build
+        env:
+          GHTOKEN: ${{ secrets.GHTOKEN }}
+          GHUSER: ${{ secrets.GHUSER }}
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
