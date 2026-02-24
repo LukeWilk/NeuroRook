@@ -25,5 +25,14 @@ exclude-labels:
 sort-by: 'merged_at'
 sort-direction: 'descending'
 
-# Optionally, you can add more customization here
-
+template: |
+  # NeuroRook Release $NEXT_MAJOR_VERSION.$NEXT_MINOR_VERSION.$NEXT_PATCH_VERSION
+  
+  ## What's Changed
+  $CHANGES
+  
+  ## Contributors
+  $CONTRIBUTORS
+  
+  ---
+  [View full diff](https://github.com/lukewilk/NeuroRook/compare/$PREVIOUS_TAG...$CURRENT_TAG)
