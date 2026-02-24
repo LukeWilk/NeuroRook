@@ -1,4 +1,4 @@
-[![Kover Coverage](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml/badge.svg)](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml)
+[![Kover Coverage](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml/badge.svg)](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml) [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 <img src="./resources/neuroRook.svg" width="140" class="center">
 
@@ -49,3 +49,9 @@ To build and run the iOS app:
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
