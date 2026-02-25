@@ -11,7 +11,7 @@ dependencies {
 }
 
 application {
-    mainClass.set("io.github.lukewilk.hardware.MainKt")
+    mainClass.set("io.github.lukewilk.hardwareRunner.MainKt")
 }
 
 koverReport {
