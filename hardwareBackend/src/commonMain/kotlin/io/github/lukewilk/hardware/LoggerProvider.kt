@@ -16,9 +16,11 @@ import co.touchlab.kermit.loggerConfigInit
 import co.touchlab.kermit.platformLogWriter
 import co.touchlab.kermit.Severity
 
+expect fun readLogLevelFromConfig(): String?
+
 object LoggerProvider {
     private val loggerConfig by lazy {
-        val logLevel = System.getenv("LOG_LEVEL")?.uppercase() ?: "INFO"
+        val logLevel = readLogLevelFromConfig()?.uppercase() ?: "INFO"
         val minSeverity = Severity.values().find { it.name == logLevel } ?: Severity.Info
         loggerConfigInit(
             platformLogWriter(),
