@@ -1,5 +1,10 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
 
+import io.github.lukewilk.hardware.pipeline.signal.WindowType
+import io.github.lukewilk.hardware.pipeline.signal.applyWindow
+import io.github.lukewilk.hardware.pipeline.signal.createWindow
+import io.github.lukewilk.hardware.pipeline.signal.windowCoherentGain
+import io.github.lukewilk.hardware.pipeline.signal.windowPowerSum
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals

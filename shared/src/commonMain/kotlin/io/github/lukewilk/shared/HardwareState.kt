@@ -46,7 +46,7 @@ data class HardwareState(
 
     // New fields for synthetic waveform generator
     val syntheticMode: SyntheticMode = SyntheticMode.SYNTHETIC_EEG_SIGNAL,
-    val waveSpecs: List<WaveSpec> = List(5) { WaveSpec() },
+    val waveSpecs: List<WaveSpec> = emptyList(),
 
     // User-defined PSD bands (up to 10). By default include common EEG bands.
     val bands: List<Band> = defaultBands(),

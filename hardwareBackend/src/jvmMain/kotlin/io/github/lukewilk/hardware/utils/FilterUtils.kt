@@ -1,8 +1,8 @@
-package io.github.lukewilk.hardware
+package io.github.lukewilk.hardware.utils
 
 import io.github.lukewilk.shared.BandstopConfig
-import io.github.lukewilk.hardware.signal.NotchFilterConfig
-import io.github.lukewilk.hardware.signal.applyNotchFilter
+import io.github.lukewilk.hardware.pipeline.signal.NotchFilterConfig
+import io.github.lukewilk.hardware.pipeline.signal.applyNotchFilter
 
 /**
  * Applies all configured notch (band-stop) filters to the signal as in the main pipeline.

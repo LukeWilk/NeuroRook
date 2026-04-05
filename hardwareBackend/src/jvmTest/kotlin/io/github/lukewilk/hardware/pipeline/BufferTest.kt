@@ -1,5 +1,6 @@
-package io.github.lukewilk.hardware
+package io.github.lukewilk.hardware.pipeline
 
+import io.github.lukewilk.hardware.RawFrame
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.Band
@@ -13,7 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
-import io.github.lukewilk.hardware.signal.computeOptimalFFTWindow
+import io.github.lukewilk.hardware.pipeline.signal.computeOptimalFFTWindow
 
 /**
  * Unit tests for the `buffer` helper in `Buffer.kt`.
@@ -27,7 +28,13 @@ class BufferTest {
             val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
 
             // Create 12 frames with single-sample payloads so we get two windows (first: 1..8, second: 5..12)
-            val frames = (1..12).map { i -> RawFrame(timestampMs = i.toLong(), channel = i % 2, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..12).map { i ->
+                RawFrame(
+                    timestampMs = i.toLong(),
+                    channel = i % 2,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
 
             val windows = mutableListOf<RawFrame>()
@@ -66,7 +73,13 @@ class BufferTest {
             val stateStore = StateStore(HardwareState(windowSize = 16, overlap = 0, preferredOverlap = 0.5, samplingRateHz = 256, bands = bands))
 
             // We'll emit enough frames for at least one window; use samplesNeeded
-            val frames = (1..samplesNeeded).map { i -> RawFrame(timestampMs = i.toLong(), channel = 1, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..samplesNeeded).map { i ->
+                RawFrame(
+                    timestampMs = i.toLong(),
+                    channel = 1,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
 
             val windows = mutableListOf<RawFrame>()
@@ -85,7 +98,13 @@ class BufferTest {
     fun testBufferRethrowsCancellationFromOnWindow() {
         runBlocking {
             val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-            val frames = (1..8).map { i -> RawFrame(timestampMs = i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..8).map { i ->
+                RawFrame(
+                    timestampMs = i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
 
             // onWindow will throw CancellationException which should be propagated
@@ -101,7 +120,13 @@ class BufferTest {
             // windowSize 10 (not power of two), overlap 2 valid -> hop = 8
             val stateStore = StateStore(HardwareState(windowSize = 10, overlap = 2, samplingRateHz = 250))
             // produce 10 samples to get exactly one window
-            val frames = (1..10).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..10).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             val windows = mutableListOf<RawFrame>()
             buffer(input, stateStore) { out -> windows.add(out) }
@@ -120,7 +145,13 @@ class BufferTest {
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands))
             val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(80.0 to 120.0))
             val samplesNeeded = cfg.windowSamples
-            val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 1, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..samplesNeeded).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 1,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             val windows = mutableListOf<RawFrame>()
             buffer(input, stateStore) { out -> windows.add(out) }
@@ -139,7 +170,13 @@ class BufferTest {
             val cfg = computeOptimalFFTWindow(samplingRateHz = 200.0, bandsHz = listOf(4.0 to 8.0), preferredOverlap = 0.0)
             val samplesNeeded = cfg.windowSamples
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 200, bands = bands, preferredOverlap = 0.0))
-            val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..samplesNeeded).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             val windows = mutableListOf<RawFrame>()
             buffer(input, stateStore) { out -> windows.add(out) }
@@ -156,7 +193,13 @@ class BufferTest {
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.5))
             val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(80.0 to 120.0), preferredOverlap = 0.5)
             val samplesNeeded = cfg.windowSamples
-            val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 1, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..samplesNeeded).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 1,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             assertFailsWith<CancellationException> {
                 buffer(input, stateStore) { _ -> throw CancellationException("stop") }
@@ -176,7 +219,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(80.0 to 120.0))
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 1, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 1,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 val windows = mutableListOf<RawFrame>()
                 buffer(input, stateStore) { out -> windows.add(out) }
@@ -194,7 +243,13 @@ class BufferTest {
             try {
                 dataFilterGetNearestPowerOfTwo = { _ -> throw RuntimeException("forced") }
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 val windows = mutableListOf<RawFrame>()
                 buffer(input, stateStore) { out -> windows.add(out) }
@@ -210,7 +265,13 @@ class BufferTest {
         runBlocking {
             // windowSize < 8 should trigger the require() check in the stored path
             val stateStore = StateStore(HardwareState(windowSize = 4, overlap = 2, samplingRateHz = 250))
-            val frames = (1..4).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..4).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             try {
                 buffer(input, stateStore) { _ -> }
@@ -227,7 +288,13 @@ class BufferTest {
             // samplingRateHz very small -> computed window may be < 8 and trigger require()
             val bands = listOf(Band("HF", 100.0, 110.0))
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 1, bands = bands))
-            val frames = (1..2).map { i -> RawFrame(i.toLong(), channel = 1, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..2).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 1,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             try {
                 buffer(input, stateStore) { _ -> }
@@ -242,7 +309,13 @@ class BufferTest {
     fun testCollectorContextCancelledThrowsCancellationException() {
         runBlocking {
             val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-            val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..8).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             val cancelledJob = Job()
             cancelledJob.cancel()
@@ -262,11 +335,17 @@ class BufferTest {
     fun testCollectorContextWithoutJobProcessesFrames() {
         runBlocking {
             val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-            val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..8).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val windows = mutableListOf<RawFrame>()
             // create a context that explicitly removes the Job element
             val ctxNoJob = currentCoroutineContext().minusKey(Job)
-            kotlinx.coroutines.withContext(ctxNoJob) {
+            withContext(ctxNoJob) {
                 buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
             }
             assertTrue(windows.isNotEmpty(), "Buffer should process frames when Job is absent from context")
@@ -281,7 +360,13 @@ class BufferTest {
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.999))
             val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(10.0 to 20.0), preferredOverlap = 0.999)
             val samplesNeeded = cfg.windowSamples
-            val frames = (1..(samplesNeeded + 2)).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..(samplesNeeded + 2)).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val windows = mutableListOf<RawFrame>()
             buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
             assertTrue(windows.isNotEmpty(), "Computed path with preferredOverlap=1.0 should still produce windows")
@@ -292,7 +377,13 @@ class BufferTest {
     fun testOnWindowRuntimeExceptionPropagates() {
         runBlocking {
             val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-            val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..8).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             try {
                 buffer(input, stateStore) { _ -> throw IllegalStateException("boom") }
@@ -314,7 +405,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(40.0 to 50.0))
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val windows = mutableListOf<RawFrame>()
                 buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
                 assertTrue(windows.isNotEmpty(), "Computed path with nfft==windowSize should produce windows")
@@ -336,7 +433,13 @@ class BufferTest {
                     p
                 }
                 val stateStore = StateStore(HardwareState(windowSize = 12, overlap = 4, samplingRateHz = 250))
-                val frames = (1..12).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..12).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val windows = mutableListOf<RawFrame>()
                 buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
                 assertTrue(windows.isNotEmpty(), "Stored path with nfft!=windowSize should still produce windows and log warning")
@@ -353,7 +456,13 @@ class BufferTest {
             try {
                 dataFilterGetNearestPowerOfTwo = { n -> n } // nfft == windowSize
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 2, samplingRateHz = 250))
-                val frames = (1..16).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..16).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val windows = mutableListOf<RawFrame>()
                 buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
                 assertTrue(windows.isNotEmpty(), "Stored path with nfft==windowSize should emit windows")
@@ -371,7 +480,13 @@ class BufferTest {
             val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(20.0 to 30.0), preferredOverlap = 0.5)
             val samplesNeeded = cfg.windowSamples
             // produce enough samples for several windows
-            val frames = (1..(samplesNeeded * 3)).map { i -> RawFrame(i.toLong(), channel = 1, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..(samplesNeeded * 3)).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 1,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val windows = mutableListOf<RawFrame>()
             buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
             assertTrue(windows.size >= 2, "Computed path should produce multiple windows when enough samples provided")
@@ -383,7 +498,13 @@ class BufferTest {
         runBlocking {
             // overlap = windowSize - 1 -> hop = 1
             val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 7, samplingRateHz = 250))
-            val frames = (1..12).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..12).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val windows = mutableListOf<RawFrame>()
             buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
             // With hop=1 and 12 samples, expect multiple overlapping windows
@@ -399,7 +520,13 @@ class BufferTest {
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 0, bands = bands))
             val cfg = computeOptimalFFTWindow(samplingRateHz = 250.0, bandsHz = listOf(30.0 to 40.0))
             val samplesNeeded = cfg.windowSamples
-            val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 2, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..samplesNeeded).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 2,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val windows = mutableListOf<RawFrame>()
             buffer(flowOf(*frames.toTypedArray()), stateStore) { out -> windows.add(out) }
             assertTrue(windows.isNotEmpty(), "Computed path with default sampling should produce windows")
@@ -421,7 +548,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 200, bands = bands))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 200.0, bandsHz = listOf(15.0 to 18.0))
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 3, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 3,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 val windows = mutableListOf<RawFrame>()
                 buffer(input, stateStore) { out -> windows.add(out) }
@@ -437,7 +570,7 @@ class BufferTest {
         runBlocking {
             // computeOptimalFFTWindow requires non-empty bands; verify it throws
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 250, bands = emptyList()))
-            kotlin.test.assertFailsWith<IllegalArgumentException> {
+            assertFailsWith<IllegalArgumentException> {
                 computeOptimalFFTWindow(samplingRateHz = 250.0, bandsHz = listOf())
             }
         }
@@ -450,11 +583,17 @@ class BufferTest {
             val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands))
             val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(20.0 to 30.0))
             val samplesNeeded = cfg.windowSamples
-            val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..samplesNeeded).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val cancelled = Job()
             cancelled.cancel()
             val ctx = currentCoroutineContext() + cancelled
-            kotlin.test.assertFailsWith<CancellationException> {
+            assertFailsWith<CancellationException> {
                 withContext(ctx) {
                     buffer(flowOf(*frames.toTypedArray()), stateStore) { _ -> }
                 }
@@ -466,11 +605,17 @@ class BufferTest {
     fun testCollectorContextCancelledStoredPathThrowsBeforeProcessing() {
         runBlocking {
             val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-            val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..8).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val cancelled = Job()
             cancelled.cancel()
             val ctx = currentCoroutineContext() + cancelled
-            kotlin.test.assertFailsWith<CancellationException> {
+            assertFailsWith<CancellationException> {
                 withContext(ctx) {
                     buffer(flowOf(*frames.toTypedArray()), stateStore) { _ -> }
                 }
@@ -483,7 +628,13 @@ class BufferTest {
         runBlocking {
             // Case A: exact window -> after taking window buffer empty; repeat should find buffer.isNotEmpty() false
             val stateStoreA = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-            val framesA = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val framesA = (1..8).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val windowsA = mutableListOf<RawFrame>()
             buffer(flowOf(*framesA.toTypedArray()), stateStoreA) { out -> windowsA.add(out) }
             assertTrue(windowsA.size == 1, "Exact window should produce one window")
@@ -492,7 +643,13 @@ class BufferTest {
             // Use a valid windowSize >=8 so the require() check passes; choose overlap=6 -> hop=2
             val stateStoreB = StateStore(HardwareState(windowSize = 8, overlap = 6, samplingRateHz = 250))
             // provide 9 samples: one full window (1..8) and one tail sample
-            val framesB = (1..9).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val framesB = (1..9).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val windowsB = mutableListOf<RawFrame>()
             buffer(flowOf(*framesB.toTypedArray()), stateStoreB) { out -> windowsB.add(out) }
             assertTrue(windowsB.isNotEmpty(), "Should produce at least one window when tail exists")
@@ -506,7 +663,13 @@ class BufferTest {
             try {
                 testJobCheckOverride = { true } // Always cancel
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 assertFailsWith<CancellationException> {
                     buffer(input, stateStore) { _ -> }
@@ -527,7 +690,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.5))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(100.0 to 110.0), preferredOverlap = 0.5)
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 assertFailsWith<CancellationException> {
                     buffer(input, stateStore) { _ -> }
@@ -545,7 +714,13 @@ class BufferTest {
             try {
                 testJob2CheckOverride = { true } // Always cancel before onWindow
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 assertFailsWith<CancellationException> {
                     buffer(input, stateStore) { _ -> }
@@ -563,7 +738,13 @@ class BufferTest {
             try {
                 testJobCheckOverride = { false } // Should not cancel
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 val windows = mutableListOf<RawFrame>()
                 buffer(input, stateStore) { out -> windows.add(out) }
@@ -584,7 +765,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.5))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(100.0 to 110.0), preferredOverlap = 0.5)
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 val windows = mutableListOf<RawFrame>()
                 buffer(input, stateStore) { out -> windows.add(out) }
@@ -602,7 +789,13 @@ class BufferTest {
             try {
                 testJobCheckOverride = null
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val windows = mutableListOf<RawFrame>()
                 // Remove Job from context
                 val ctxNoJob = currentCoroutineContext().minusKey(Job)
@@ -626,7 +819,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.5))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(100.0 to 110.0), preferredOverlap = 0.5)
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 assertFailsWith<CancellationException> {
                     buffer(input, stateStore) { _ -> }
@@ -644,7 +843,13 @@ class BufferTest {
             try {
                 testJob2CheckOverride = { false } // Should not cancel
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val input = flowOf(*frames.toTypedArray())
                 val windows = mutableListOf<RawFrame>()
                 buffer(input, stateStore) { out -> windows.add(out) }
@@ -665,7 +870,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.5))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(100.0 to 110.0), preferredOverlap = 0.5)
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val ctxNoJob = currentCoroutineContext().minusKey(Job)
                 val windows = mutableListOf<RawFrame>()
                 withContext(ctxNoJob) {
@@ -688,7 +899,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.5))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(100.0 to 110.0), preferredOverlap = 0.5)
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val job = Job() // active
                 val ctx = currentCoroutineContext() + job
                 val windows = mutableListOf<RawFrame>()
@@ -712,7 +929,13 @@ class BufferTest {
                 val stateStore = StateStore(HardwareState(windowSize = 0, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 0.5))
                 val cfg = computeOptimalFFTWindow(samplingRateHz = 256.0, bandsHz = listOf(100.0 to 110.0), preferredOverlap = 0.5)
                 val samplesNeeded = cfg.windowSamples
-                val frames = (1..samplesNeeded * 2).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..samplesNeeded * 2).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val job = Job()
                 job.cancel()
                 val ctx = currentCoroutineContext() + job
@@ -737,7 +960,13 @@ class BufferTest {
             try {
                 testJob2CheckOverride = null
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val ctxNoJob = currentCoroutineContext().minusKey(Job)
                 val windows = mutableListOf<RawFrame>()
                 withContext(ctxNoJob) {
@@ -757,7 +986,13 @@ class BufferTest {
             try {
                 testJob2CheckOverride = null
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..8).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..8).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val job = Job() // active
                 val ctx = currentCoroutineContext() + job
                 val windows = mutableListOf<RawFrame>()
@@ -778,7 +1013,13 @@ class BufferTest {
             try {
                 testJob2CheckOverride = null
                 val stateStore = StateStore(HardwareState(windowSize = 8, overlap = 4, samplingRateHz = 250))
-                val frames = (1..16).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+                val frames = (1..16).map { i ->
+                    RawFrame(
+                        i.toLong(),
+                        channel = 0,
+                        data = doubleArrayOf(i.toDouble())
+                    )
+                }
                 val job = Job()
                 job.cancel()
                 val ctx = currentCoroutineContext() + job
@@ -801,7 +1042,13 @@ class BufferTest {
         runBlocking {
             val bands = listOf(Band("HF", 100.0, 110.0))
             val stateStore = StateStore(HardwareState(windowSize = 16, overlap = 0, samplingRateHz = 256, bands = bands, preferredOverlap = 1.5))
-            val frames = (1..16).map { i -> RawFrame(i.toLong(), channel = 0, data = doubleArrayOf(i.toDouble())) }
+            val frames = (1..16).map { i ->
+                RawFrame(
+                    i.toLong(),
+                    channel = 0,
+                    data = doubleArrayOf(i.toDouble())
+                )
+            }
             val input = flowOf(*frames.toTypedArray())
             val original = testJob2CheckOverride
             testJob2CheckOverride = null

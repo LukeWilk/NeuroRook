@@ -1,57 +1,87 @@
-[![Kover Coverage](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml/badge.svg)](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml) [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+# NeuroRook
 
-<img src="./resources/neuroRook.svg" width="140" class="center">
+[![Kover Coverage](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml/badge.svg)](https://github.com/lukewilk/NeuroRook/actions/workflows/kover.yml)
+[![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## NeuroRook
-
-NeuroRook is a neurofeedback suite based on the [BrainFlow library](https://brainflow.org/). It is provided as-is and is currently in the initial stages of development. The primary target is desktop (JVM), with Android support planned for the future.
+<p align="center">
+  <img src="./resources/neuroRook.svg" width="140" alt="NeuroRook Logo">
+</p>
 
 ---
 
-### Build and Run
+## Overview
+
+**NeuroRook** is a neurofeedback suite built on top of the [BrainFlow library](https://brainflow.org/). The project is in active development, with a primary focus on desktop (JVM) support and planned expansion to Android and iOS platforms. NeuroRook aims to provide a robust, extensible, and user-friendly environment for neurofeedback research and applications.
+
+---
+
+## Features
+- **Kotlin Multiplatform**: Shared business logic across JVM, Android, and iOS.
+- **BrainFlow Integration**: Leverages BrainFlow for hardware-agnostic EEG and biosignal acquisition.
+- **Modular Architecture**: Designed for extensibility and maintainability.
+- **Cross-Platform UI**: Compose Multiplatform for a consistent user experience.
+
+---
+
+## Project Structure
+- [`composeApp/`](./composeApp/src): Shared codebase for Compose Multiplatform applications.
+- [`iosApp/`](./iosApp/iosApp): Entry point and UI for iOS applications (SwiftUI).
+- [`androidApp/`](./androidApp/src): Android application module (planned).
+- [`hardwareBackend/`](./hardwareBackend/src): Hardware abstraction and BrainFlow integration.
+- [`shared/`](./shared/src): Common business logic and utilities.
+
+---
+
+## Getting Started
+
+### Prerequisites
+- **JDK 21** or later
+- **Android Studio** (for Android/iOS development)
+- **Gradle** (wrapper included)
+
+### Build Instructions
 
 #### Desktop (JVM)
-Note: Not implemented yet, under development.
+*Note: Desktop support is under active development.*
 
-To build and run the desktop application:
-- Build:
-  ```shell
+- **Build:**
+  ```sh
   ./gradlew :composeApp:build
   ```
-- Run:
-  ```shell
+- **Run:**
+  ```sh
   ./gradlew :composeApp:run
   ```
 
 #### Android
-Note: Not implemented yet, but the structure is in place for future development.
+*Note: Android support is planned for future releases.*
 
-To build the Android app:
-- Build:
-  ```shell
+- **Build APK:**
+  ```sh
   ./gradlew :androidApp:assembleDebug
   ```
-- Install and run via Android Studio or adb.
+- **Install/Run:** Use Android Studio or `adb`.
 
 #### iOS
-Note: Not implemented yet, but the structure is in place for future development.
+*Note: iOS support is planned for future releases.*
 
-To build and run the iOS app:
-- Open the `/iosApp/iosApp` directory in Xcode and run from there.
-
----
-
-### Project Structure
-
-* [`/composeApp`](./composeApp/src): Shared code for Compose Multiplatform applications.
-* [`/iosApp`](./iosApp/iosApp): Entry point for iOS applications, including SwiftUI code.
+- **Build/Run:**
+  - Open `/iosApp/iosApp` in Xcode and run the project.
 
 ---
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)
+## Contributing
+
+Contributions are welcome! Please open issues or submit pull requests for bug fixes, feature requests, or improvements. For major changes, please discuss them via issues first.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+## Resources
+- [Kotlin Multiplatform Documentation](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)
+- [BrainFlow Documentation](https://brainflow.org/)

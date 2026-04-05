@@ -1,7 +1,7 @@
 package io.github.lukewilk.hardware.integration
 
 import brainflow.BoardIds
-import io.github.lukewilk.hardware.BandPower
+import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.hardware.BoardConnectionManager
 import io.github.lukewilk.hardware.LoggerProvider
 import io.github.lukewilk.hardware.main

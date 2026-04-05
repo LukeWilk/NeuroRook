@@ -1,5 +1,6 @@
 package io.github.lukewilk.hardware
 
+import io.github.lukewilk.hardware.utils.applyConfiguredNotchFilters
 import io.github.lukewilk.shared.BandstopConfig
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
@@ -7,6 +8,12 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
 
 class MainTest {
     @Test
@@ -62,5 +69,48 @@ class MainTest {
         assertTrue(bandPowersCalled, "onBandPowers callback should be invoked")
         assertTrue(fftResultCalled, "onFFTResult callback should be invoked")
         assertTrue(result == null, "main should timeout and exit")
+    }
+
+    @Test
+    fun testMainArgsBranch() = runBlocking {
+        val job = Job()
+        val scope = CoroutineScope(Dispatchers.Default + job)
+        val mainJob = launch { main(arrayOf("foo", "bar"), scope = scope) }
+        val completed = withTimeoutOrNull(10_000) {
+            delay(200)
+            mainJob.cancelAndJoin()
+        }
+        assertTrue(completed != null, "main did not terminate within 10 seconds")
+    }
+
+    @Test
+    fun testJvmMainEntryPoint() = runBlocking {
+        val job = Job()
+        val scope = CoroutineScope(Dispatchers.Default + job)
+        val mainJob = launch { main(arrayOf(), scope = scope) }
+        val completed = withTimeoutOrNull(10_000) {
+            delay(200)
+            mainJob.cancelAndJoin()
+        }
+        assertTrue(completed != null, "main did not terminate within 10 seconds")
+    }
+
+    @Test
+    fun testJvmEntryPointFunction() {
+        // Directly call the JVM entry point to cover its coroutine logic
+        io.github.lukewilk.hardware.main(arrayOf("test"))
+        // If it returns, the test passes
+    }
+
+    @Test
+    fun testMainDefaultArgsNull() = runBlocking {
+        val job = Job()
+        val scope = CoroutineScope(Dispatchers.Default + job)
+        val mainJob = launch { main(scope = scope) } // _args omitted, will be null
+        val completed = withTimeoutOrNull(10_000) {
+            delay(200)
+            mainJob.cancelAndJoin()
+        }
+        assertTrue(completed != null, "main did not terminate within 10 seconds")
     }
 }

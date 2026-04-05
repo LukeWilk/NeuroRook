@@ -1,4 +1,7 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
+
+import kotlin.math.PI
+import kotlin.math.cos
 
 /**
  * Window function types for spectral analysis.
@@ -23,18 +26,18 @@ fun createWindow(length: Int, type: WindowType = WindowType.HAMMING): DoubleArra
     when (type) {
         WindowType.HAMMING -> {
             for (n in 0 until length) {
-                window[n] = 0.54 - 0.46 * kotlin.math.cos(2.0 * kotlin.math.PI * n.toDouble() / (length - 1))
+                window[n] = 0.54 - 0.46 * cos(2.0 * PI * n.toDouble() / (length - 1))
             }
         }
         WindowType.HANN -> {
             for (n in 0 until length) {
-                window[n] = 0.5 * (1.0 - kotlin.math.cos(2.0 * kotlin.math.PI * n.toDouble() / (length - 1)))
+                window[n] = 0.5 * (1.0 - cos(2.0 * PI * n.toDouble() / (length - 1)))
             }
         }
         WindowType.BLACKMAN -> {
             for (n in 0 until length) {
-                val x = 2.0 * kotlin.math.PI * n.toDouble() / (length - 1)
-                window[n] = 0.42 - 0.5 * kotlin.math.cos(x) + 0.08 * kotlin.math.cos(2.0 * x)
+                val x = 2.0 * PI * n.toDouble() / (length - 1)
+                window[n] = 0.42 - 0.5 * cos(x) + 0.08 * cos(2.0 * x)
             }
         }
     }

@@ -7,7 +7,7 @@
  *   - Used for backend development, debugging, and pipeline validation.
  *
  * Example:
- *   ./gradlew :hardwareBackendRunner:run --args="synthetic"
+ *   ./gradlew :hardwareBackendRunner:run --args=SYNTHETIC_BOARD
  *
  */
 
@@ -16,6 +16,7 @@ package io.github.lukewilk.hardwareRunner
 import io.github.lukewilk.hardware.main
 import io.github.lukewilk.hardware.BoardConnectionManager
 import io.github.lukewilk.hardware.LoggerProvider
+import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.HardwareState
 import kotlinx.coroutines.runBlocking
@@ -36,11 +37,9 @@ fun main(args: Array<String>): Unit {
         )
     }
     // Connect first
-    val boardId = when (args.getOrNull(0)?.lowercase()) {
-        "synthetic" -> brainflow.BoardIds.SYNTHETIC_BOARD
-        "neuropawn" -> brainflow.BoardIds.NEUROPAWN_KNIGHT_BOARD
-        else -> brainflow.BoardIds.NO_BOARD
-    }
+    val boardId = brainflow.BoardIds.values().find {
+        it.name.equals(args.getOrNull(0), ignoreCase = true)
+    } ?: brainflow.BoardIds.NO_BOARD
     val serialPort = args.getOrNull(1) ?: ""
     manager.connect(boardId, serialPort)
     manager.startStream()
@@ -67,7 +66,7 @@ fun main(args: Array<String>): Unit {
                     logger.w { "[FFT] All zeroes!" }
                 }
             },
-            onBandPowers = { bandPowers: List<io.github.lukewilk.hardware.BandPower> ->
+            onBandPowers = { bandPowers: List<BandPower> ->
                 logger.i { "[BandPowers] ${bandPowers.joinToString(", ") { bp -> "${bp.name}: ${"%.3f".format(bp.power)}" }}" }
                 if (bandPowers.any { it.power != 0.0 }) {
                     logger.i { "[BandPowers-NonZero] min=${bandPowers.minOf { it.power }}, max=${bandPowers.maxOf { it.power }}" }
@@ -82,7 +81,3 @@ fun main(args: Array<String>): Unit {
     manager.stopStream()
     manager.close()
 }
-
-
-
-

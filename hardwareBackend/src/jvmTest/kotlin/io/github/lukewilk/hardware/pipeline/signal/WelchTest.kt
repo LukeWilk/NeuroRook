@@ -1,5 +1,8 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
 
+import io.github.lukewilk.hardware.pipeline.signal.WelchConfig
+import io.github.lukewilk.hardware.pipeline.signal.bandPower
+import io.github.lukewilk.hardware.pipeline.signal.computeWelchPSD
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin

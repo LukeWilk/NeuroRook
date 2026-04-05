@@ -1,4 +1,7 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
+
+import kotlin.math.ceil
+import kotlin.math.log2
 
 /**
  * Configuration for an FFT window: number of samples in the window and the overlap fraction (0.0..1.0).
@@ -79,7 +82,7 @@ fun computeOptimalFFTWindow(
  */
 private fun nextPowerOfTwo(n: Int): Int {
     if (n <= 1) return 1
-    val exponent = kotlin.math.ceil(kotlin.math.log2(n.toDouble())).toInt()
+    val exponent = ceil(log2(n.toDouble())).toInt()
     val result = 1 shl exponent
     return if (result <= 0) Int.MAX_VALUE else result
 }
