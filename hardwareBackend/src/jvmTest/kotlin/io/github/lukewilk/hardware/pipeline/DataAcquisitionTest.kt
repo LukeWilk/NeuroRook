@@ -1,7 +1,11 @@
-package io.github.lukewilk.hardware
+package io.github.lukewilk.hardware.pipeline
 
 import brainflow.BoardIds
 import brainflow.BoardShim
+import brainflow.BrainFlowInputParams
+import io.github.lukewilk.hardware.BoardConnectionManager
+import io.github.lukewilk.hardware.LoggerProvider
+import io.github.lukewilk.hardware.RawFrame
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -10,12 +14,12 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import co.touchlab.kermit.Logger
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlin.collections.iterator
+import kotlin.math.abs
 
 class DataAcquisitionTest {
     private val logger = LoggerProvider.getLogger("DataAcquisitionTest")
@@ -28,7 +32,7 @@ class DataAcquisitionTest {
     fun cleanup() {
         runBlocking {
             manager.close()
-            kotlinx.coroutines.delay(200) // Give BrainFlow time to release resources
+            delay(200) // Give BrainFlow time to release resources
         }
     }
 
@@ -82,13 +86,13 @@ class DataAcquisitionTest {
     fun testStreamRawFramesHandlesBoardShimError() = runBlocking {
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
         manager.startStream()
-        val errorState = io.github.lukewilk.shared.HardwareState(
+        val errorState = HardwareState(
             connected = true,
             synthetic = true,
             samplingRateHz = 120,
             enabledChannels = listOf(0) // Enable channel 0 by index
         )
-        val errorBoardShim = object : BoardShim(BoardIds.SYNTHETIC_BOARD, brainflow.BrainFlowInputParams()) {
+        val errorBoardShim = object : BoardShim(BoardIds.SYNTHETIC_BOARD, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 throw RuntimeException("Simulated error")
             }
@@ -107,7 +111,7 @@ class DataAcquisitionTest {
     @Test
     fun testStreamRawFrames_nativeShimPath() = runBlocking {
         // Simulate a BoardShim that returns a fixed block of data
-        val fakeShim = object : brainflow.BoardShim(0, brainflow.BrainFlowInputParams()) {
+        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 // 2 channels, each with num_datapoints samples
                 return arrayOf(
@@ -118,7 +122,10 @@ class DataAcquisitionTest {
         }
         val stateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 2, enabledChannels = listOf(0, 1)))
         val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(manager, boardShimProvider = { fakeShim }, stateProvider = { stateStore.get() })
+        val acq = DataAcquisition(
+            manager,
+            boardShimProvider = { fakeShim },
+            stateProvider = { stateStore.get() })
         manager.startStream()
         val frames = mutableListOf<RawFrame>()
         acq.streamRawFrames().take(3).toList(frames)
@@ -136,7 +143,7 @@ class DataAcquisitionTest {
                     val nextStart = chFrames[i + 1].data.take(overlapSize)
                     println("DEBUG: channel $ch overlap = $overlap, nextStart = $nextStart")
                     overlap.zip(nextStart).forEach { (a, b) ->
-                        assertTrue(kotlin.math.abs(a - b) < 1e-9, "Channel $ch overlap values should match: $a vs $b")
+                        assertTrue(abs(a - b) < 1e-9, "Channel $ch overlap values should match: $a vs $b")
                     }
                 }
             }
@@ -147,7 +154,7 @@ class DataAcquisitionTest {
     fun testStreamRawFrames_channelCountChange() = runBlocking {
         // Simulate a BoardShim that changes channel count
         var callCount = 0
-        val fakeShim = object : brainflow.BoardShim(0, brainflow.BrainFlowInputParams()) {
+        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 callCount++
                 return if (callCount == 1) {
@@ -159,7 +166,10 @@ class DataAcquisitionTest {
         }
         val stateStore = StateStore(HardwareState(connected = true, windowSize = 2, overlap = 1, channels = 2, enabledChannels = listOf(0, 1)))
         val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(manager, boardShimProvider = { fakeShim }, stateProvider = { stateStore.get() })
+        val acq = DataAcquisition(
+            manager,
+            boardShimProvider = { fakeShim },
+            stateProvider = { stateStore.get() })
         manager.startStream()
         val frames = mutableListOf<RawFrame>()
         acq.streamRawFrames().take(4).toList(frames)
@@ -192,14 +202,17 @@ class DataAcquisitionTest {
     @Test
     fun testNativeShimEmptyDataBranch() = runBlocking {
         // Simulate a BoardShim that returns empty data arrays
-        val fakeShim = object : brainflow.BoardShim(0, brainflow.BrainFlowInputParams()) {
+        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 return arrayOf(DoubleArray(0)) // data[0].isEmpty() == true
             }
         }
         val stateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 1, enabledChannels = listOf(0)))
         val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(manager, boardShimProvider = { fakeShim }, stateProvider = { stateStore.get() })
+        val acq = DataAcquisition(
+            manager,
+            boardShimProvider = { fakeShim },
+            stateProvider = { stateStore.get() })
         manager.startStream()
         val frames = mutableListOf<RawFrame>()
         val job = launch {
@@ -215,7 +228,7 @@ class DataAcquisitionTest {
     @Test
     fun testNativeShimEnabledChannelsDefaultBranch() = runBlocking {
         // Simulate a BoardShim that returns data for 3 channels
-        val fakeShim = object : brainflow.BoardShim(0, brainflow.BrainFlowInputParams()) {
+        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 return arrayOf(
                     DoubleArray(num_datapoints) { 1.0 },
@@ -227,7 +240,10 @@ class DataAcquisitionTest {
         // Set enabledChannels to empty to trigger the default branch
         val stateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 3, enabledChannels = emptyList()))
         val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(manager, boardShimProvider = { fakeShim }, stateProvider = { stateStore.get() })
+        val acq = DataAcquisition(
+            manager,
+            boardShimProvider = { fakeShim },
+            stateProvider = { stateStore.get() })
         manager.startStream()
         val frames = mutableListOf<RawFrame>()
         acq.streamRawFrames().take(3).toList(frames)
@@ -240,7 +256,7 @@ class DataAcquisitionTest {
     @Test
     fun testNativeShimStreamingLoopErrorBranch() = runBlocking {
         // Simulate a BoardShim that returns valid data
-        val fakeShim = object : brainflow.BoardShim(0, brainflow.BrainFlowInputParams()) {
+        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 return arrayOf(DoubleArray(num_datapoints) { 1.0 })
             }
@@ -254,7 +270,11 @@ class DataAcquisitionTest {
             stateStore.get()
         }
         val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(manager, boardShimProvider = { fakeShim }, stateProvider = throwingStateProvider)
+        val acq = DataAcquisition(
+            manager,
+            boardShimProvider = { fakeShim },
+            stateProvider = throwingStateProvider
+        )
         manager.startStream()
         val frames = mutableListOf<RawFrame>()
         // Should not throw, should just log error and exit
@@ -267,7 +287,7 @@ class DataAcquisitionTest {
     @Test
     fun testStreamRawFrames_cancellationDuringFetch() = runBlocking {
         // Fake shim that blocks in get_board_data so the CompletableFuture remains pending
-        val blockingShim = object : brainflow.BoardShim(0, brainflow.BrainFlowInputParams()) {
+        val blockingShim = object : BoardShim(0, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 try {
                     Thread.sleep(1000) // sleep long enough to allow cancellation
@@ -278,7 +298,10 @@ class DataAcquisitionTest {
 
         val stateStore = StateStore(HardwareState(connected = true, windowSize = 8, overlap = 4, channels = 1, enabledChannels = listOf(0)))
         val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(manager, boardShimProvider = { blockingShim }, stateProvider = { stateStore.get() })
+        val acq = DataAcquisition(
+            manager,
+            boardShimProvider = { blockingShim },
+            stateProvider = { stateStore.get() })
         manager.startStream()
 
         // Launch a collector job and cancel it shortly afterward to trigger the cancellation handler

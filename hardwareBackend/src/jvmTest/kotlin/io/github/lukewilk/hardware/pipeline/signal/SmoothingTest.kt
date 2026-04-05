@@ -1,5 +1,7 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
 
+import io.github.lukewilk.hardware.pipeline.signal.applyExponentialMovingAverage
+import io.github.lukewilk.hardware.pipeline.signal.applyMedianFilter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -19,9 +21,24 @@ class SmoothingTest {
 
     @Test
     fun testApplyExponentialMovingAverage_invalid() {
-        assertFailsWith<IllegalArgumentException> { applyExponentialMovingAverage(doubleArrayOf(), 0.5) }
-        assertFailsWith<IllegalArgumentException> { applyExponentialMovingAverage(doubleArrayOf(1.0), -0.1) }
-        assertFailsWith<IllegalArgumentException> { applyExponentialMovingAverage(doubleArrayOf(1.0), 1.1) }
+        assertFailsWith<IllegalArgumentException> {
+            applyExponentialMovingAverage(
+                doubleArrayOf(),
+                0.5
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            applyExponentialMovingAverage(
+                doubleArrayOf(1.0),
+                -0.1
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            applyExponentialMovingAverage(
+                doubleArrayOf(1.0),
+                1.1
+            )
+        }
     }
 
     @Test

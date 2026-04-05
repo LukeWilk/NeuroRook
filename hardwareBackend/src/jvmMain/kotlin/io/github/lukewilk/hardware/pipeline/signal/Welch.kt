@@ -1,4 +1,4 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
 
 import com.github.psambit9791.jdsp.transform.FastFourier
 import kotlin.math.sqrt

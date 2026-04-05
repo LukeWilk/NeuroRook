@@ -1,7 +1,12 @@
-package io.github.lukewilk.hardware
+package io.github.lukewilk.hardware.pipeline
 
 import brainflow.BoardShim
+import io.github.lukewilk.hardware.BoardConnectionManager
+import io.github.lukewilk.hardware.HardwareConnector
 import io.github.lukewilk.hardware.LoggerProvider
+import io.github.lukewilk.hardware.RawFrame
+import io.github.lukewilk.shared.HardwareState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.isActive
@@ -11,8 +16,10 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
+import java.util.function.Supplier
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.math.floor
 
 /**
  * DataAcquisition.kt
@@ -25,7 +32,7 @@ import kotlin.coroutines.resumeWithException
 class DataAcquisition(
     private val connectionManager: BoardConnectionManager,
     private val boardShimProvider: (() -> BoardShim?) = { connectionManager.getBoardShim() },
-    private val stateProvider: () -> io.github.lukewilk.shared.HardwareState = { connectionManager.state.value }
+    private val stateProvider: () -> HardwareState = { connectionManager.state.value }
 ) : HardwareConnector {
     private val logger = LoggerProvider.getLogger("DataAcquisition")
 
@@ -57,9 +64,9 @@ class DataAcquisition(
                     val now = System.currentTimeMillis()
                     val elapsedMs = (now - startMs).coerceAtLeast(0L)
                     val expectedTotal = (elapsedMs.toDouble() * samplingRate.toDouble() / 1000.0)
-                    var toGen = kotlin.math.floor(expectedTotal - totalGenerated.toDouble()).toInt()
+                    var toGen = floor(expectedTotal - totalGenerated.toDouble()).toInt()
                     if (toGen <= 0) {
-                        kotlinx.coroutines.delay(5)
+                        delay(5)
                         continue
                     }
                     // cap generation to avoid huge bursts
@@ -76,14 +83,20 @@ class DataAcquisition(
                                 if (!connectionManager.isStreaming() || !coroutineContext.isActive) break
                                 val window = channelBuffers[ch].take(windowSize).toDoubleArray()
                                 logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
-                                emit(RawFrame(timestampMs = System.currentTimeMillis(), channel = ch, data = window))
+                                emit(
+                                    RawFrame(
+                                        timestampMs = System.currentTimeMillis(),
+                                        channel = ch,
+                                        data = window
+                                    )
+                                )
                                 repeat(windowSize - stateProvider().overlap) { channelBuffers[ch].removeFirstOrNull() }
                             }
                         }
                     }
                     totalGenerated += toGen
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 logger.i { "Synthetic streaming cancelled: ${e.message}" }
             } catch (e: Exception) {
                 logger.e(e) { "Synthetic streaming error: ${e.message}" }
@@ -111,7 +124,7 @@ class DataAcquisition(
                     val data = try {
                         withTimeout(500) {
                             suspendCancellableCoroutine<Array<DoubleArray>> { cont ->
-                                val f2 = CompletableFuture.supplyAsync(java.util.function.Supplier {
+                                val f2 = CompletableFuture.supplyAsync(Supplier {
                                     boardShim.get_board_data(windowSize)
                                 }, executor)
                                 f2.whenComplete { r, ex -> if (ex != null) cont.resumeWithException(ex) else cont.resume(r) }
@@ -149,12 +162,18 @@ class DataAcquisition(
                             if (!connectionManager.isStreaming() || !coroutineContext.isActive) break
                             val window = channelBuffers[ch].take(windowSize).toDoubleArray()
                             logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
-                            emit(RawFrame(timestampMs = System.currentTimeMillis(), channel = ch, data = window))
+                            emit(
+                                RawFrame(
+                                    timestampMs = System.currentTimeMillis(),
+                                    channel = ch,
+                                    data = window
+                                )
+                            )
                             repeat(windowSize - stateProvider().overlap) { channelBuffers[ch].removeFirstOrNull() }
                         }
                     }
                 }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 logger.i { "Streaming loop cancelled: ${e.message}" }
             } catch (e: Exception) {
                 logger.e(e) { "Streaming loop error: ${e.message}" }

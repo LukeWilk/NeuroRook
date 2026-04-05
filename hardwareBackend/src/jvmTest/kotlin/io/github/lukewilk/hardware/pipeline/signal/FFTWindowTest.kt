@@ -1,5 +1,7 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
 
+import io.github.lukewilk.hardware.pipeline.signal.computeOptimalFFTWindow
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -19,7 +21,7 @@ class FFTWindowTest {
         // expect window captures 4 cycles of 8Hz => duration = 0.5s => 500 samples => next power of two = 512
         assertEquals(512, cfg.windowSamples)
         // hop = 512/8 = 64 => overlap = 1 - 64/512 = 0.875
-        assertTrue(kotlin.math.abs(cfg.overlap - 0.875) < 1e-9)
+        assertTrue(abs(cfg.overlap - 0.875) < 1e-9)
     }
 
     @Test
@@ -93,7 +95,7 @@ class FFTWindowTest {
         assertEquals(256, cfg.windowSamples)
         // requested overlap 0.9 => hop = 256 * 0.1 = 25.6 -> int hop = 25 -> overlap = 1 - 25/256
         val expectedOverlap = 1.0 - 25.0 / 256.0
-        assertTrue(kotlin.math.abs(cfg.overlap - expectedOverlap) < 1e-6)
+        assertTrue(abs(cfg.overlap - expectedOverlap) < 1e-6)
     }
 
     @Test

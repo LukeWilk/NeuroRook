@@ -1,15 +1,18 @@
-package io.github.lukewilk.hardware
+package io.github.lukewilk.hardware.pipeline
 
+import brainflow.DataFilter
+import io.github.lukewilk.hardware.LoggerProvider
+import io.github.lukewilk.hardware.RawFrame
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.HardwareState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Job
-import io.github.lukewilk.hardware.signal.computeOptimalFFTWindow
+import io.github.lukewilk.hardware.pipeline.signal.computeOptimalFFTWindow
 
 // Test hook: can be overridden in tests to simulate DataFilter failures.
-var dataFilterGetNearestPowerOfTwo: (Int) -> Int = { n -> brainflow.DataFilter.get_nearest_power_of_two(n) }
+var dataFilterGetNearestPowerOfTwo: (Int) -> Int = { n -> DataFilter.get_nearest_power_of_two(n) }
 
 // Test hooks: can be overridden in tests to simulate Job cancellation checks.
 var testJobCheckOverride: ((Job?) -> Boolean)? = null

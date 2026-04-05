@@ -1,4 +1,4 @@
-package io.github.lukewilk.hardware.signal
+package io.github.lukewilk.hardware.pipeline.signal
 
 /**
  * Exponential moving average (EMA).
