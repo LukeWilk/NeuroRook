@@ -3,6 +3,7 @@ package io.github.lukewilk.hardware
 import io.github.lukewilk.hardware.pipeline.startDataPipeline
 import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.shared.HardwareState
+import io.github.lukewilk.shared.logging.LoggerProvider
 import io.github.lukewilk.shared.StateStore
 import kotlinx.coroutines.*
 

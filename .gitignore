@@ -55,6 +55,8 @@ yarn-error.log*
 /.idea/caches/
 *.tmp
 *.swp
+package-lock.json
 
 # Dev helpers
 /dev.sh
+/.github/*

@@ -3,9 +3,9 @@ package io.github.lukewilk.hardware.pipeline
 import brainflow.BoardShim
 import io.github.lukewilk.hardware.BoardConnectionManager
 import io.github.lukewilk.hardware.HardwareConnector
-import io.github.lukewilk.hardware.LoggerProvider
 import io.github.lukewilk.hardware.RawFrame
 import io.github.lukewilk.shared.HardwareState
+import io.github.lukewilk.shared.logging.LoggerProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlin.coroutines.coroutineContext
@@ -16,7 +16,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
-import java.util.function.Supplier
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.floor
@@ -32,7 +31,8 @@ import kotlin.math.floor
 class DataAcquisition(
     private val connectionManager: BoardConnectionManager,
     private val boardShimProvider: (() -> BoardShim?) = { connectionManager.getBoardShim() },
-    private val stateProvider: () -> HardwareState = { connectionManager.state.value }
+    private val stateProvider: () -> HardwareState = { connectionManager.state.value },
+    private val timeProvider: () -> Long = { System.currentTimeMillis() }
 ) : HardwareConnector {
     private val logger = LoggerProvider.getLogger("DataAcquisition")
 
@@ -58,10 +58,14 @@ class DataAcquisition(
             try {
                 // time-driven generation: compute expected total samples from start time and produce missing samples
                 val samplingRate = state.samplingRateHz
-                val startMs = System.currentTimeMillis()
+                val startMs = timeProvider()
                 var totalGenerated = 0L
-                while (connectionManager.isStreaming() && stateProvider().connected && coroutineContext.isActive) {
-                    val now = System.currentTimeMillis()
+                while (shouldContinueStreamingLoop(
+                    streaming = connectionManager.isStreaming(),
+                    connected = stateProvider().connected,
+                    isActive = coroutineContext.isActive
+                )) {
+                    val now = timeProvider()
                     val elapsedMs = (now - startMs).coerceAtLeast(0L)
                     val expectedTotal = (elapsedMs.toDouble() * samplingRate.toDouble() / 1000.0)
                     var toGen = floor(expectedTotal - totalGenerated.toDouble()).toInt()
@@ -72,20 +76,24 @@ class DataAcquisition(
                     // cap generation to avoid huge bursts
                     val maxCap = samplingRate * 2
                     if (toGen > maxCap) toGen = maxCap
-                    val synth = try { connectionManager.generateSyntheticData(toGen) } catch (e: Exception) { null }
+                    val synth = try { connectionManager.generateSyntheticData(toGen) } catch (_: Exception) { null }
                     if (synth != null) {
                         var enabledChannels = stateProvider().enabledChannels
                         if (enabledChannels.isEmpty()) enabledChannels = (0 until numChannels).toList()
                         for (ch in enabledChannels) {
                             if (ch < 0 || ch >= synth.size) continue
                             channelBuffers[ch].addAll(synth[ch].asList())
-                            while (channelBuffers[ch].size >= windowSize) {
-                                if (!connectionManager.isStreaming() || !coroutineContext.isActive) break
+                            while (shouldDrainChannelBuffer(
+                                bufferedSamples = channelBuffers[ch].size,
+                                windowSize = windowSize,
+                                streaming = connectionManager.isStreaming(),
+                                isActive = coroutineContext.isActive
+                            )) {
                                 val window = channelBuffers[ch].take(windowSize).toDoubleArray()
                                 logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
                                 emit(
                                     RawFrame(
-                                        timestampMs = System.currentTimeMillis(),
+                                        timestampMs = timeProvider(),
                                         channel = ch,
                                         data = window
                                     )
@@ -119,12 +127,16 @@ class DataAcquisition(
             try {
                 var channelBuffers: Array<ArrayDeque<Double>>? = null
 
-                while (connectionManager.isStreaming() && stateProvider().connected && coroutineContext.isActive) {
+                while (shouldContinueStreamingLoop(
+                    streaming = connectionManager.isStreaming(),
+                    connected = stateProvider().connected,
+                    isActive = coroutineContext.isActive
+                )) {
                     // Fetch one block of data of size windowSize directly (avoid get_board_data_count calls)
                     val data = try {
                         withTimeout(500) {
                             suspendCancellableCoroutine<Array<DoubleArray>> { cont ->
-                                val f2 = CompletableFuture.supplyAsync(Supplier {
+                                val f2 = CompletableFuture.supplyAsync({
                                     boardShim.get_board_data(windowSize)
                                 }, executor)
                                 f2.whenComplete { r, ex -> if (ex != null) cont.resumeWithException(ex) else cont.resume(r) }
@@ -158,13 +170,17 @@ class DataAcquisition(
                     for (ch in enabledChannels) {
                         if (ch < 0 || ch >= data.size) continue
                         channelBuffers[ch].addAll(data[ch].asList())
-                        while (channelBuffers[ch].size >= windowSize) {
-                            if (!connectionManager.isStreaming() || !coroutineContext.isActive) break
+                        while (shouldDrainChannelBuffer(
+                            bufferedSamples = channelBuffers[ch].size,
+                            windowSize = windowSize,
+                            streaming = connectionManager.isStreaming(),
+                            isActive = coroutineContext.isActive
+                        )) {
                             val window = channelBuffers[ch].take(windowSize).toDoubleArray()
                             logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
                             emit(
                                 RawFrame(
-                                    timestampMs = System.currentTimeMillis(),
+                                    timestampMs = timeProvider(),
                                     channel = ch,
                                     data = window
                                 )
@@ -191,3 +207,25 @@ class DataAcquisition(
     override suspend fun isConnected(): Boolean = connectionManager.state.value.connected
     override suspend fun close() { connectionManager.close() }
 }
+
+internal fun shouldContinueStreamingLoop(streaming: Boolean, connected: Boolean, isActive: Boolean): Boolean {
+    if (!streaming) return false
+    if (!connected) return false
+    return isActive
+}
+
+internal fun shouldEmitCurrentWindow(streaming: Boolean, isActive: Boolean): Boolean {
+    if (!streaming) return false
+    return isActive
+}
+
+internal fun shouldDrainChannelBuffer(
+    bufferedSamples: Int,
+    windowSize: Int,
+    streaming: Boolean,
+    isActive: Boolean
+): Boolean {
+    if (bufferedSamples < windowSize) return false
+    return shouldEmitCurrentWindow(streaming, isActive)
+}
+

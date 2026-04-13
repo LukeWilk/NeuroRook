@@ -7,7 +7,8 @@ import kotlin.test.assertTrue
 
 class RawFrameTest {
     @Test
-    fun testRawFrameEquality() {
+    fun `raw frame fields can be compared by value even when payload uses arrays`() {
+        // Documents the equality caveat for DoubleArray-backed data classes used in acquisition tests.
         val arr1 = doubleArrayOf(1.0, 2.0)
         val arr2 = doubleArrayOf(1.0, 2.0)
         val arr3 = doubleArrayOf(3.0, 4.0)
@@ -24,7 +25,8 @@ class RawFrameTest {
     }
 
     @Test
-    fun testRawFrameFields() {
+    fun `raw frame exposes the supplied timestamp channel and payload`() {
+        // Confirms constructor arguments are preserved when frames move through the pipeline.
         val arr = doubleArrayOf(5.0, 6.0)
         val rf = RawFrame(999L, 2, arr)
         assertEquals(999L, rf.timestampMs)
@@ -32,4 +34,3 @@ class RawFrameTest {
         assertTrue(rf.data.contentEquals(arr))
     }
 }
-

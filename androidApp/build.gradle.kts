@@ -6,11 +6,7 @@ plugins {
 
 android {
     namespace = "io.github.lukewilk"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26
@@ -30,23 +26,14 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
     }
 }
 
-koverReport {
-    filters {
-        excludes {
-            classes (
-                // Add any generated or entry-point classes if needed
-            )
-        }
-    }
-}
 
 dependencies {
     implementation(projects.composeApp)
@@ -69,4 +56,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.testExt.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    configurations.all {
+        exclude(group = "org.jetbrains.compose.resources")
+    }
 }

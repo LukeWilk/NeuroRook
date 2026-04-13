@@ -67,13 +67,14 @@ fun applyMedianFilter(signal: DoubleArray, windowSize: Int = 5): DoubleArray {
 
     for (i in signal.indices) {
         val window = mutableListOf<Double>()
+        val start = maxOf(0, i - half)
+        val end = minOf(signal.lastIndex, i + half)
 
         // Collect samples in window
-        for (j in -half..half) {
-            val idx = i + j
-            if (idx in signal.indices) {
-                window.add(signal[idx])
-            }
+        var idx = start
+        while (idx <= end) {
+            window.add(signal[idx])
+            idx += 1
         }
 
         // Sort and take median

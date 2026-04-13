@@ -48,12 +48,18 @@ fun computeOptimalFFTWindow(
     val lows = bandsHz.map { it.first }
     require(lows.all { it > 0.0 }) { "band lower bounds must be > 0" }
 
-    val fLow = lows.minOrNull() ?: throw IllegalArgumentException("bandsHz empty")
+    var fLow = lows.first()
+    for (index in 1 until lows.size) {
+        val candidate = lows[index]
+        if (candidate < fLow) {
+            fLow = candidate
+        }
+    }
 
     // desired duration in seconds to capture `cycles` of fLow
     val minWindowSec = minWindowMs.toDouble() / 1000.0
     var desiredSec = cycles.toDouble() / fLow
-    if (desiredSec.isInfinite() || desiredSec.isNaN()) desiredSec = maxWindowSec
+    if (!desiredSec.isFinite()) desiredSec = maxWindowSec
     val durSec = desiredSec.coerceIn(minWindowSec, maxWindowSec)
 
     val samplesD = durSec * samplingRateHz

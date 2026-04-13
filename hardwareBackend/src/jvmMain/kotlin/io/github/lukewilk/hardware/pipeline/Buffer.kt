@@ -1,10 +1,10 @@
 package io.github.lukewilk.hardware.pipeline
 
 import brainflow.DataFilter
-import io.github.lukewilk.hardware.LoggerProvider
 import io.github.lukewilk.hardware.RawFrame
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.HardwareState
+import io.github.lukewilk.shared.logging.LoggerProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -36,7 +36,7 @@ suspend fun buffer(
         val ctx = currentCoroutineContext()
         val job = ctx[Job]
         // Use test hook if provided; otherwise default behavior
-        if ((testJobCheckOverride?.invoke(job) ?: (job != null && !job.isActive))) throw CancellationException("Buffer coroutine cancelled")
+        if (shouldCancelBuffering(job, testJobCheckOverride)) throw CancellationException("Buffer coroutine cancelled")
 
         buffer.addAll(frame.data.asList())
         lastTimestamp = frame.timestampMs
@@ -67,7 +67,7 @@ suspend fun buffer(
                 p
             }
             val isPowerOfTwo = (nfft == windowSize)
-            require(windowSize >= 8 && overlapSamples in 0 until windowSize) { "Invalid windowSize/overlap: windowSize=$windowSize, overlap=$overlapSamples, isPowerOfTwo=$isPowerOfTwo" }
+            validateComputedWindow(windowSize, overlapSamples, isPowerOfTwo)
 
             while (buffer.size >= windowSize) {
                 val window = buffer.take(windowSize).toDoubleArray()
@@ -75,13 +75,13 @@ suspend fun buffer(
                 try {
                     val ctx2 = currentCoroutineContext()
                     val job2 = ctx2[Job]
-                    if ((testJob2CheckOverride?.invoke(job2) ?: (job2 != null && !job2.isActive))) throw CancellationException("Buffer cancelled before onWindow")
+                    if (shouldCancelBuffering(job2, testJob2CheckOverride)) throw CancellationException("Buffer cancelled before onWindow")
                     onWindow(outFrame)
                 } catch (e: CancellationException) {
                     throw e
                 }
                 // Slide the buffer by hop samples (windowSize - overlapSamples)
-                repeat(hop) { if (buffer.isNotEmpty()) buffer.removeFirst() }
+                slideBuffer(buffer, hop)
             }
         } else {
             // Existing behavior: windowSize & overlap stored as ints in state
@@ -94,7 +94,7 @@ suspend fun buffer(
                 p
             }
             val isPowerOfTwo = (nfft == windowSize)
-            require(windowSize >= 8 && overlap in 0 until windowSize) { "Invalid windowSize/overlap: windowSize=$windowSize, overlap=$overlap, isPowerOfTwo=$isPowerOfTwo" }
+            validateStoredWindow(windowSize, overlap, isPowerOfTwo)
 
             if (!isPowerOfTwo) {
                 val logger = LoggerProvider.getLogger("Buffer")
@@ -109,14 +109,44 @@ suspend fun buffer(
                 try {
                     val ctx2 = currentCoroutineContext()
                     val job2 = ctx2[Job]
-                    if ((testJob2CheckOverride?.invoke(job2) ?: (job2 != null && !job2.isActive))) throw CancellationException("Buffer cancelled before onWindow")
+                    if (shouldCancelBuffering(job2, testJob2CheckOverride)) throw CancellationException("Buffer cancelled before onWindow")
                     onWindow(outFrame)
                 } catch (e: CancellationException) {
                     throw e
                 }
                 // Slide the buffer by hop samples (windowSize - overlap)
-                repeat(hop) { if (buffer.isNotEmpty()) buffer.removeFirst() }
+                slideBuffer(buffer, hop)
             }
         }
+    }
+}
+
+internal fun shouldCancelBuffering(job: Job?, overrideCheck: ((Job?) -> Boolean)?): Boolean {
+    if (overrideCheck != null) {
+        return overrideCheck(job)
+    }
+    return job != null && !job.isActive
+}
+
+internal fun slideBuffer(buffer: ArrayDeque<Double>, hop: Int) {
+    repeat(hop) {
+        if (buffer.isNotEmpty()) {
+            buffer.removeFirst()
+        }
+    }
+}
+
+internal fun validateComputedWindow(windowSize: Int, overlapSamples: Int, isPowerOfTwo: Boolean) {
+    require(windowSize >= 8) {
+        "Invalid windowSize/overlap: windowSize=$windowSize, overlap=$overlapSamples, isPowerOfTwo=$isPowerOfTwo"
+    }
+}
+
+internal fun validateStoredWindow(windowSize: Int, overlap: Int, isPowerOfTwo: Boolean) {
+    require(windowSize >= 8) {
+        "Invalid windowSize/overlap: windowSize=$windowSize, overlap=$overlap, isPowerOfTwo=$isPowerOfTwo"
+    }
+    require(overlap in 0 until windowSize) {
+        "Invalid windowSize/overlap: windowSize=$windowSize, overlap=$overlap, isPowerOfTwo=$isPowerOfTwo"
     }
 }

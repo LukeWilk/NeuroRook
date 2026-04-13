@@ -6,13 +6,15 @@ import kotlin.test.assertNotEquals
 
 class HardwareStateTest {
     @Test
-    fun defaultStateIsDisconnected() {
+    fun `default hardware state starts disconnected`() {
+        // Protects the initial UI state before any backend connection attempt has been made.
         val state = HardwareState()
         assertEquals(false, state.connected, "Default connected state should be false")
     }
 
     @Test
-    fun copyWithConnectedTrue() {
+    fun `copy can flip the connected flag without mutating the original`() {
+        // Demonstrates the immutable update pattern used by reducers and view models.
         val state = HardwareState()
         val newState = state.copy(connected = true)
         assertEquals(true, newState.connected, "Connected should be true after copy")
@@ -20,7 +22,8 @@ class HardwareStateTest {
     }
 
     @Test
-    fun equalityAndHashCode() {
+    fun `equal hardware states share equality and hash code`() {
+        // Keeps HardwareState safe to use in caching, snapshot comparison, and collection lookups.
         val state1 = HardwareState(connected = true)
         val state2 = HardwareState(connected = true)
         val state3 = HardwareState(connected = false)
@@ -30,7 +33,8 @@ class HardwareStateTest {
     }
 
     @Test
-    fun samplingRateIsSetCorrectly() {
+    fun `sampling rate is preserved for synthetic and hardware configurations`() {
+        // Documents that the same state object can represent either synthetic or physical devices.
         val stateSynthetic = HardwareState(connected = true, synthetic = true, samplingRateHz = 120)
         assertEquals(120, stateSynthetic.samplingRateHz, "Synthetic board should have 120Hz sampling rate")
         val stateHardware = HardwareState(connected = true, synthetic = false, samplingRateHz = 256)

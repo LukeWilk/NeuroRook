@@ -3,13 +3,13 @@ package io.github.lukewilk.hardware.integration
 import brainflow.BoardIds
 import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.hardware.BoardConnectionManager
-import io.github.lukewilk.hardware.LoggerProvider
 import io.github.lukewilk.hardware.main
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.SyntheticMode
 import io.github.lukewilk.shared.WaveSpec
 import io.github.lukewilk.shared.WaveType
+import io.github.lukewilk.shared.logging.LoggerProvider
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

@@ -37,11 +37,13 @@ private fun defaultBands(): List<Band> = listOf(
 
 data class HardwareState(
     val connected: Boolean = false,
+    val streaming: Boolean = false,
     val synthetic: Boolean = true, // true if connected to synthetic board, false for hardware
     val samplingRateHz: Int = 0, // sampling rate in Hz
     val channels: Int = 0, // number of channels
     val enabledChannels: List<Int> = emptyList(), // enabled/disabled per channel
     val rldEnabled: List<Int> = emptyList(), // RLD enabled/disabled per channel
+    val verifiedChannels: List<Int> = emptyList(), // channels verified via backend API
     val filterConfig: FilterConfig = FilterConfig(null, emptyList()), // filter config for acquisition
 
     // New fields for synthetic waveform generator

@@ -20,7 +20,6 @@ class BoardDescrUtilsTest {
 
         // eeg_channels should coerce to a non-empty int list for synthetic fallback
         val eeg = BoardDescrUtils.asIntList(descr, "eeg_channels")
-        assertTrue(eeg is List<*>, "asIntList should return a List")
         assertTrue(eeg.isNotEmpty(), "eeg_channels should not be empty in fallback descriptor")
     }
 
