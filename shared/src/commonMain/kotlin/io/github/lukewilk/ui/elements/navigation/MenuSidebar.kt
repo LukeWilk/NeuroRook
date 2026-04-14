@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,7 +52,7 @@ fun MenuSidebar(
 
     Row(modifier = modifier.fillMaxHeight()) {
         Surface(
-            color = MaterialTheme.colorScheme.background,
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 2.dp,
             shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
             modifier = Modifier
@@ -59,7 +60,13 @@ fun MenuSidebar(
                 .fillMaxHeight()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = { updateExpanded(!isExpanded) }, modifier = Modifier.fillMaxWidth()) {
+                IconButton(
+                    onClick = { updateExpanded(!isExpanded) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
                     Text(
                         text = "≡",
                         style = MaterialTheme.typography.titleLarge
