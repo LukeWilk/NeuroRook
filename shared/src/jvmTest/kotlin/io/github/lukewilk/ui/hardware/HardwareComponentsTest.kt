@@ -1,8 +1,11 @@
 package io.github.lukewilk.ui.hardware
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -144,6 +147,50 @@ class HardwareComponentsTest {
     }
 
     @Test
+    fun `device selection card omits support copy and forwards disconnect clicks when connected`() {
+        // Covers the connected-state status and disconnect action while using a bare serial path with no extra descriptor text.
+        var disconnectClicks = 0
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    DeviceSelectionCard(
+                        availableBoards = listOf("Cyton"),
+                        selectedBoard = 0,
+                        onBoardSelected = {},
+                        serialPort = "/dev/ttyUSB2",
+                        onSerialPortChange = {},
+                        serialPortPlaceholder = "/dev/ttyUSB2",
+                        serialPortSuggestions = listOf(
+                            SerialPortSuggestion(
+                                path = "/dev/ttyUSB2",
+                                displayName = "/dev/ttyUSB2"
+                            )
+                        ),
+                        selectedSerialPortSuggestion = 0,
+                        onSerialPortSuggestionSelected = {},
+                        onRefreshSerialPorts = {},
+                        isLoadingSerialPorts = false,
+                        serialPortSupportText = null,
+                        timeout = "0",
+                        onTimeoutChange = {},
+                        isConnected = true,
+                        isBusy = false,
+                        onConnect = {},
+                        onDisconnect = { disconnectClicks += 1 }
+                    )
+                }
+            }
+
+            onNodeWithText("Device Connected").assertIsDisplayed()
+            onNodeWithText("Connect").assertIsNotEnabled()
+            onNodeWithText("Disconnect").performClick()
+        }
+
+        assertEquals(1, disconnectClicks)
+    }
+
+    @Test
     fun `board control card renders statuses and forwards toggles`() {
         // Exercises the channel table, status-badge branches, and streaming indicator from the parent control card.
         val toggledChannels = mutableListOf<Pair<Int, Boolean>>()
@@ -183,6 +230,32 @@ class HardwareComponentsTest {
     }
 
     @Test
+    fun `board control card falls back to a generic title when no board label is selected`() {
+        // Covers the safe-title fallback branch used before board metadata is available.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    BoardControlCard(
+                        availableBoards = emptyList(),
+                        selectedBoard = 4,
+                        isConnected = false,
+                        isStreaming = false,
+                        isBusy = false,
+                        channels = listOf(ChannelState(id = 0, name = "Channel 1", enabled = false, rld = false, status = "Not configured")),
+                        onChannelToggle = { _, _ -> },
+                        onRldToggle = { _, _ -> },
+                        onVerifyChannels = {},
+                        onStartStreaming = {},
+                        onStopStreaming = {}
+                    )
+                }
+            }
+
+            onNodeWithText("Board Control").assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun `system log card renders empty placeholder and newest log entries`() {
         // Confirms both the idle placeholder branch and the populated log-list branch remain visible to callers.
         runComposeUiTest {
@@ -206,6 +279,32 @@ class HardwareComponentsTest {
             onNodeWithText("WARN • Voltage dip", substring = true).assertIsDisplayed()
             onNodeWithText("ERROR • Board disconnected", substring = true).assertIsDisplayed()
         }
+    }
+
+    @Test
+    fun `system log card renders a standalone error entry`() {
+        // Forces the error-only severity branch so the card still renders the newest failure entry without sibling rows.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    SystemLogCard(
+                        logs = listOf(SystemLogEntry(5L, SystemLogSeverity.ERROR, "Standalone failure"))
+                    )
+                }
+            }
+
+            onNodeWithText("ERROR • Standalone failure", substring = true).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `system log severity helper maps info warn and error to the material color scheme`() {
+        // Verifies the extracted helper returns the exact scheme colors used for each supported severity.
+        val colorScheme = lightColorScheme()
+
+        assertEquals(colorScheme.primary, severityColorFor(colorScheme, SystemLogSeverity.INFO))
+        assertEquals(colorScheme.tertiary, severityColorFor(colorScheme, SystemLogSeverity.WARN))
+        assertEquals(colorScheme.error, severityColorFor(colorScheme, SystemLogSeverity.ERROR))
     }
 }
 

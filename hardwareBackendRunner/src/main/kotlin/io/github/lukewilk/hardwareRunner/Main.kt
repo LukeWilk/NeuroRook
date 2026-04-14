@@ -14,8 +14,9 @@
 package io.github.lukewilk.hardwareRunner
 
 import brainflow.BoardIds
-import io.github.lukewilk.hardware.main
+import co.touchlab.kermit.Logger
 import io.github.lukewilk.hardware.BoardConnectionManager
+import io.github.lukewilk.hardware.main
 import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.HardwareState
@@ -95,16 +96,32 @@ internal fun fftLogMessages(fftResult: Array<Pair<Double, Double>>): List<Runner
     }
 }
 
-internal fun bandPowerLogMessages(bandPowers: List<BandPower>): List<RunnerLogMessage> = buildList {
-    add(RunnerLogMessage(RunnerLogLevel.INFO, "[BandPowers] ${bandPowers.joinToString(", ") { bp -> "${bp.name}: ${"%.3f".format(bp.power)}" }}"))
-    if (bandPowers.any { it.power != 0.0 }) {
-        add(RunnerLogMessage(RunnerLogLevel.INFO, "[BandPowers-NonZero] min=${bandPowers.minOf { it.power }}, max=${bandPowers.maxOf { it.power }}"))
+internal fun runnerBandPowerSummaryMessage(bandPowers: List<BandPower>): RunnerLogMessage =
+    if (hasNonZeroBandPowers(bandPowers)) {
+        RunnerLogMessage(
+            RunnerLogLevel.INFO,
+            nonZeroBandPowerSummaryText(bandPowers)
+        )
     } else {
-        add(RunnerLogMessage(RunnerLogLevel.WARN, "[BandPowers] All zeroes!"))
+        RunnerLogMessage(RunnerLogLevel.WARN, "[BandPowers] All zeroes!")
     }
-}
 
-internal fun emitRunnerLogs(logger: co.touchlab.kermit.Logger, messages: List<RunnerLogMessage>) {
+internal fun hasNonZeroBandPowers(bandPowers: List<BandPower>): Boolean =
+    bandPowers.any { it.power != 0.0 }
+
+internal fun nonZeroBandPowerSummaryText(bandPowers: List<BandPower>): String =
+    "[BandPowers-NonZero] min=${minimumBandPowerValue(bandPowers)}, max=${maximumBandPowerValue(bandPowers)}"
+
+internal fun minimumBandPowerValue(bandPowers: List<BandPower>): Double = bandPowers.minOf { it.power }
+
+internal fun maximumBandPowerValue(bandPowers: List<BandPower>): Double = bandPowers.maxOf { it.power }
+
+internal fun bandPowerLogMessages(bandPowers: List<BandPower>): List<RunnerLogMessage> = listOf(
+    RunnerLogMessage(RunnerLogLevel.INFO, "[BandPowers] ${bandPowers.joinToString(", ") { bp -> "${bp.name}: ${"%.3f".format(bp.power)}" }}"),
+    runnerBandPowerSummaryMessage(bandPowers)
+)
+
+internal fun emitRunnerLogs(logger: Logger, messages: List<RunnerLogMessage>) {
     messages.forEach { message ->
         when (message.level) {
             RunnerLogLevel.VERBOSE -> logger.v { message.message }
@@ -114,30 +131,138 @@ internal fun emitRunnerLogs(logger: co.touchlab.kermit.Logger, messages: List<Ru
     }
 }
 
-fun main(args: Array<String>) {
-    // Set up state store and connection manager
-    val stateStore = StateStore(HardwareState())
-    val manager = BoardConnectionManager(stateStore)
-    // Configure synthetic board state for nonzero data
+internal fun defaultRunnerLogger(name: String): Logger = LoggerProvider.getLogger(name)
+
+internal suspend fun invokeRunnerHardwareMain(
+    args: Array<String>,
+    onFiltered: (DoubleArray) -> Unit,
+    onFFTResult: (Array<Pair<Double, Double>>) -> Unit,
+    onBandPowers: (List<BandPower>) -> Unit,
+    stateStore: StateStore<HardwareState>,
+    manager: BoardConnectionManager
+) {
+    main(_args = args, onFiltered = onFiltered, onFFTResult = onFFTResult, onBandPowers = onBandPowers, stateStore = stateStore, manager = manager)
+}
+
+internal object RunnerRuntimeHooks {
+    private val defaultRawHardwareMainInvoker: suspend (Array<String>, (DoubleArray) -> Unit, (Array<Pair<Double, Double>>) -> Unit, (List<BandPower>) -> Unit, StateStore<HardwareState>, BoardConnectionManager) -> Unit =
+        { args, onFiltered, onFFTResult, onBandPowers, stateStore, manager -> rawHardwareMainFallbackInvoker(args, onFiltered, onFFTResult, onBandPowers, stateStore, manager) }
+
+    var loggerFactoryOverride: ((String) -> Logger)? = null
+    var connectOverride: ((BoardConnectionManager, BoardIds, String) -> Unit)? = null
+    var startStreamOverride: ((BoardConnectionManager) -> Unit)? = null
+    var enableChannelOverride: ((BoardConnectionManager, Int) -> Unit)? = null
+    var stopStreamOverride: ((BoardConnectionManager) -> Unit)? = null
+    var closeOverride: ((BoardConnectionManager) -> Unit)? = null
+    var loggerFactoryFallback: (String) -> Logger = ::defaultRunnerLogger
+    var connectFallback: (BoardConnectionManager, BoardIds, String) -> Unit = { manager, boardId, serialPort -> manager.connect(boardId, serialPort) }
+    var startStreamFallback: (BoardConnectionManager) -> Unit = { manager -> manager.startStream() }
+    var enableChannelFallback: (BoardConnectionManager, Int) -> Unit = { manager, channelId -> manager.enableChannel(channelId) }
+    var stopStreamFallback: (BoardConnectionManager) -> Unit = { manager -> manager.stopStream() }
+    var closeFallback: (BoardConnectionManager) -> Unit = { manager -> manager.close() }
+    var backendMainOverride: (suspend (Array<String>, Logger, StateStore<HardwareState>, BoardConnectionManager) -> Unit)? = null
+    var backendMainFallbackOverride: (suspend (Array<String>, Logger, StateStore<HardwareState>, BoardConnectionManager) -> Unit)? = null
+    var rawHardwareMainFallbackInvoker: suspend (Array<String>, (DoubleArray) -> Unit, (Array<Pair<Double, Double>>) -> Unit, (List<BandPower>) -> Unit, StateStore<HardwareState>, BoardConnectionManager) -> Unit =
+        ::invokeRunnerHardwareMain
+    var rawHardwareMainInvoker: suspend (Array<String>, (DoubleArray) -> Unit, (Array<Pair<Double, Double>>) -> Unit, (List<BandPower>) -> Unit, StateStore<HardwareState>, BoardConnectionManager) -> Unit = defaultRawHardwareMainInvoker
+
+    internal fun reset() {
+        loggerFactoryOverride = null
+        connectOverride = null
+        startStreamOverride = null
+        enableChannelOverride = null
+        stopStreamOverride = null
+        closeOverride = null
+        loggerFactoryFallback = ::defaultRunnerLogger
+        connectFallback = { manager, boardId, serialPort -> manager.connect(boardId, serialPort) }
+        startStreamFallback = { manager -> manager.startStream() }
+        enableChannelFallback = { manager, channelId -> manager.enableChannel(channelId) }
+        stopStreamFallback = { manager -> manager.stopStream() }
+        closeFallback = { manager -> manager.close() }
+        backendMainOverride = null
+        backendMainFallbackOverride = null
+        rawHardwareMainFallbackInvoker = ::invokeRunnerHardwareMain
+        rawHardwareMainInvoker = defaultRawHardwareMainInvoker
+    }
+}
+
+internal fun defaultRunnerLoggerFactory(name: String): Logger {
+    val override = RunnerRuntimeHooks.loggerFactoryOverride
+    return if (override != null) {
+        override(name)
+    } else {
+        RunnerRuntimeHooks.loggerFactoryFallback(name)
+    }
+}
+
+internal fun defaultRunnerConnect(manager: BoardConnectionManager, boardId: BoardIds, serialPort: String) {
+    RunnerRuntimeHooks.connectOverride?.invoke(manager, boardId, serialPort) ?: RunnerRuntimeHooks.connectFallback(manager, boardId, serialPort)
+}
+
+internal fun defaultRunnerStartStream(manager: BoardConnectionManager) {
+    RunnerRuntimeHooks.startStreamOverride?.invoke(manager) ?: RunnerRuntimeHooks.startStreamFallback(manager)
+}
+
+internal fun defaultRunnerEnableChannel(manager: BoardConnectionManager, channelId: Int) {
+    RunnerRuntimeHooks.enableChannelOverride?.invoke(manager, channelId) ?: RunnerRuntimeHooks.enableChannelFallback(manager, channelId)
+}
+
+internal fun defaultRunnerStopStream(manager: BoardConnectionManager) {
+    RunnerRuntimeHooks.stopStreamOverride?.invoke(manager) ?: RunnerRuntimeHooks.stopStreamFallback(manager)
+}
+
+internal fun defaultRunnerClose(manager: BoardConnectionManager) {
+    RunnerRuntimeHooks.closeOverride?.invoke(manager) ?: RunnerRuntimeHooks.closeFallback(manager)
+}
+
+internal suspend fun defaultRunnerBackendMain(
+    args: Array<String>,
+    logger: Logger,
+    stateStore: StateStore<HardwareState>,
+    manager: BoardConnectionManager
+) = (RunnerRuntimeHooks.backendMainOverride
+    ?: RunnerRuntimeHooks.backendMainFallbackOverride
+    ?: { forwardedArgs, forwardedLogger, forwardedStateStore, forwardedManager ->
+        RunnerRuntimeHooks.rawHardwareMainInvoker.invoke(
+            forwardedArgs,
+            { filtered: DoubleArray -> emitRunnerLogs(forwardedLogger, filteredLogMessages(filtered)) },
+            { fftResult: Array<Pair<Double, Double>> -> emitRunnerLogs(forwardedLogger, fftLogMessages(fftResult)) },
+            { bandPowers: List<BandPower> -> emitRunnerLogs(forwardedLogger, bandPowerLogMessages(bandPowers)) },
+            forwardedStateStore,
+            forwardedManager
+        )
+    }).invoke(args, logger, stateStore, manager)
+
+internal data class RunnerRuntime(
+    val stateStore: StateStore<HardwareState> = StateStore(HardwareState()),
+    val managerFactory: (StateStore<HardwareState>) -> BoardConnectionManager = ::BoardConnectionManager,
+    val loggerFactory: (String) -> Logger = ::defaultRunnerLoggerFactory,
+    val connect: (BoardConnectionManager, BoardIds, String) -> Unit = ::defaultRunnerConnect,
+    val startStream: (BoardConnectionManager) -> Unit = ::defaultRunnerStartStream,
+    val enableChannel: (BoardConnectionManager, Int) -> Unit = ::defaultRunnerEnableChannel,
+    val stopStream: (BoardConnectionManager) -> Unit = ::defaultRunnerStopStream,
+    val close: (BoardConnectionManager) -> Unit = ::defaultRunnerClose,
+    val backendMain: suspend (Array<String>, Logger, StateStore<HardwareState>, BoardConnectionManager) -> Unit =
+        ::defaultRunnerBackendMain
+)
+
+internal fun runRunner(args: Array<String>, runtime: RunnerRuntime = RunnerRuntime()) {
+    val stateStore = runtime.stateStore
+    val manager = runtime.managerFactory(stateStore)
     configureRunnerSyntheticDefaults(stateStore)
-    // Connect first
     val boardId = resolveBoardId(args)
     val serialPort = args.getOrNull(1) ?: ""
-    manager.connect(boardId, serialPort)
-    manager.startStream()
-    val logger = LoggerProvider.getLogger("hardwareRunner.Main")
-    manager.enableChannel(0)
-    // Now start the main pipeline with the same stateStore and manager
+    runtime.connect(manager, boardId, serialPort)
+    runtime.startStream(manager)
+    val logger = runtime.loggerFactory("hardwareRunner.Main")
+    runtime.enableChannel(manager, 0)
     runBlocking {
-        main(
-            _args = args,
-            onFiltered = { filtered: DoubleArray -> emitRunnerLogs(logger, filteredLogMessages(filtered)) },
-            onFFTResult = { fftResult: Array<Pair<Double, Double>> -> emitRunnerLogs(logger, fftLogMessages(fftResult)) },
-            onBandPowers = { bandPowers: List<BandPower> -> emitRunnerLogs(logger, bandPowerLogMessages(bandPowers)) },
-            stateStore = stateStore,
-            manager = manager
-        )
+        runtime.backendMain(args, logger, stateStore, manager)
     }
-    manager.stopStream()
-    manager.close()
+    runtime.stopStream(manager)
+    runtime.close(manager)
+}
+
+fun main(args: Array<String>) {
+    runRunner(args)
 }

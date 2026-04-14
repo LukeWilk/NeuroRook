@@ -35,13 +35,21 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven { url = uri("https://maven.pkg.jetbrains.space/public/p/compose/dev") }
+        maven("https://maven.pkg.jetbrains.space/public/p/compose/dev") {
+            content {
+                includeGroup("org.jetbrains")
+                includeGroupByRegex("org\\.jetbrains\\..+")
+            }
+        }
         if (GHUSER != null && GHTOKEN != null) {
             maven {
                 url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
                 credentials {
                     username = GHUSER
                     password = GHTOKEN
+                }
+                content {
+                    includeGroup("org.brainflow")
                 }
             }
         }

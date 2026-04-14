@@ -13,6 +13,34 @@ import io.github.lukewilk.ui.elements.layout.ActionButtonRow
 import io.github.lukewilk.ui.elements.layout.VerticalSpacer
 import io.github.lukewilk.ui.elements.text.SectionTitle
 
+internal data class BoardControlUiState(
+    val title: String,
+    val channelsEnabled: Boolean,
+    val verifyChannelsEnabled: Boolean,
+    val startStreamEnabled: Boolean,
+    val stopStreamEnabled: Boolean,
+    val showStreamingIndicator: Boolean
+)
+
+internal fun boardControlUiState(
+    availableBoards: List<String>,
+    selectedBoard: Int,
+    isConnected: Boolean,
+    isStreaming: Boolean,
+    isBusy: Boolean
+): BoardControlUiState {
+    val boardTitle = availableBoards.getOrNull(selectedBoard)?.let { "$it Control" } ?: "Board Control"
+    val connectedAndReady = isConnected && !isBusy
+    return BoardControlUiState(
+        title = boardTitle,
+        channelsEnabled = connectedAndReady,
+        verifyChannelsEnabled = connectedAndReady,
+        startStreamEnabled = isConnected && !isStreaming && !isBusy,
+        stopStreamEnabled = isStreaming && !isBusy,
+        showStreamingIndicator = isStreaming
+    )
+}
+
 @Composable
 fun BoardControlCard(
     availableBoards: List<String>,
@@ -27,18 +55,20 @@ fun BoardControlCard(
     onStartStreaming: () -> Unit,
     onStopStreaming: () -> Unit
 ) {
+    val uiState = boardControlUiState(availableBoards, selectedBoard, isConnected, isStreaming, isBusy)
+
     PanelCard {
         CardHeader(
             icon = "\uD83D\uDD0C",
             iconColor = MaterialTheme.colorScheme.primary,
-            title = availableBoards.getOrNull(selectedBoard)?.let { "$it Control" } ?: "Board Control"
+            title = uiState.title
         )
         VerticalSpacer(18.dp)
         SectionTitle("Channel Configuration")
         VerticalSpacer(12.dp)
         ChannelTable(
             channels = channels,
-            enabled = isConnected && !isBusy,
+            enabled = uiState.channelsEnabled,
             onChannelToggle = onChannelToggle,
             onRldToggle = onRldToggle
         )
@@ -47,7 +77,7 @@ fun BoardControlCard(
             {
                 SecondaryButton(
                     onClick = onVerifyChannels,
-                    enabled = isConnected && !isBusy,
+                    enabled = uiState.verifyChannelsEnabled,
                     modifier = Modifier.weight(1f),
                     text = "Verify Channels"
                 )
@@ -55,7 +85,7 @@ fun BoardControlCard(
             {
                 SecondaryButton(
                     onClick = onStartStreaming,
-                    enabled = isConnected && !isStreaming && !isBusy,
+                    enabled = uiState.startStreamEnabled,
                     modifier = Modifier.weight(1f),
                     text = "Start Stream"
                 )
@@ -63,13 +93,13 @@ fun BoardControlCard(
             {
                 SecondaryButton(
                     onClick = onStopStreaming,
-                    enabled = isStreaming && !isBusy,
+                    enabled = uiState.stopStreamEnabled,
                     modifier = Modifier.weight(1f),
                     text = "Stop Stream"
                 )
             }
         ))
-        if (isStreaming) {
+        if (uiState.showStreamingIndicator) {
             VerticalSpacer(8.dp)
             StatusIndicator(
                 color = MaterialTheme.colorScheme.tertiary,

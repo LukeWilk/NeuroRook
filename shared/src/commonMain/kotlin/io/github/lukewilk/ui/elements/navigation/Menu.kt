@@ -9,24 +9,39 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+internal fun menuShowsTitle(title: String?): Boolean = title != null
+
+internal fun menuItemHasDivider(index: Int, lastIndex: Int): Boolean = index < lastIndex
+
 @Composable
 fun Menu(
     title: String? = null,
     items: List<Pair<String, () -> Unit>>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icons: List<String?> = emptyList(),
+    selectedIndex: Int = -1
 ) {
+    val menuItems = items.mapIndexed { index, (label, action) ->
+        MenuItemUiState(
+            label = label,
+            onClick = action,
+            icon = icons.getOrNull(index),
+            selected = index == selectedIndex
+        )
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
-        title?.let {
+        if (menuShowsTitle(title)) {
             Text(
-                text = it,
+                text = title.orEmpty(),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.fillMaxWidth()
             )
             HorizontalDivider(thickness = 1.dp)
         }
-        items.forEachIndexed { idx, (label, action) ->
-            MenuItem(label = label, onClick = action)
-            if (idx < items.lastIndex) HorizontalDivider(thickness = 0.5.dp)
+        menuItems.forEachIndexed { idx, item ->
+            MenuItem(item)
+            if (menuItemHasDivider(idx, menuItems.lastIndex)) HorizontalDivider(thickness = 0.5.dp)
         }
     }
 }

@@ -7,6 +7,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+internal fun sectionTitleFontSizeSp(): Int = 14
+
+internal fun sectionTitleFontWeight(): FontWeight = FontWeight.Medium
+
 @Composable
 fun SectionTitle(
     text: String,
@@ -14,8 +18,8 @@ fun SectionTitle(
 ) {
     Text(
         text = text,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
+        fontSize = sectionTitleFontSizeSp().sp,
+        fontWeight = sectionTitleFontWeight(),
         color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier
     )

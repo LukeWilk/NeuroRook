@@ -20,6 +20,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+internal fun menuSidebarWidth(expanded: Boolean, collapsedWidth: Int, expandedWidth: Int): Int =
+    if (expanded) expandedWidth else collapsedWidth
+
+internal fun menuSidebarSystemModeLabel(isSystemDark: Boolean?): String? = when (isSystemDark) {
+    true -> "System: Dark mode"
+    false -> "System: Light mode"
+    null -> null
+}
+
+internal fun menuSidebarItemHasDivider(index: Int, lastIndex: Int): Boolean = index < lastIndex
+
 @Composable
 fun MenuSidebar(
     title: String? = null,
@@ -27,45 +38,52 @@ fun MenuSidebar(
     modifier: Modifier = Modifier,
     collapsedWidth: Int = 56,
     expandedWidth: Int = 220,
-    isSystemDark: Boolean? = null
+    isSystemDark: Boolean? = null,
+    icons: List<String?> = emptyList(),
+    selectedIndex: Int = -1,
+    expanded: Boolean? = null,
+    onExpandedChange: ((Boolean) -> Unit)? = null,
+    headerContent: (@Composable () -> Unit)? = null
 ) {
-    var expanded by remember { mutableStateOf(true) }
+    var internalExpanded by remember { mutableStateOf(true) }
+    val isExpanded = expanded ?: internalExpanded
+    val updateExpanded: (Boolean) -> Unit = onExpandedChange ?: { internalExpanded = it }
+
     Row(modifier = modifier.fillMaxHeight()) {
         Surface(
             color = MaterialTheme.colorScheme.background,
             tonalElevation = 2.dp,
             shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
             modifier = Modifier
-                .width(if (expanded) expandedWidth.dp else collapsedWidth.dp)
+                .width(menuSidebarWidth(isExpanded, collapsedWidth, expandedWidth).dp)
                 .fillMaxHeight()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth()) {
+                IconButton(onClick = { updateExpanded(!isExpanded) }, modifier = Modifier.fillMaxWidth()) {
                     Text(
                         text = "≡",
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
-                if (expanded) {
-                    if (isSystemDark != null) {
+                if (isExpanded) {
+                    val systemModeLabel = menuSidebarSystemModeLabel(isSystemDark)
+                    if (systemModeLabel != null) {
                         Text(
-                            text = if (isSystemDark) "System: Dark mode" else "System: Light mode",
+                            text = systemModeLabel,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                         )
                     }
-                    title?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                    if (headerContent != null) {
+                        headerContent()
                         HorizontalDivider(thickness = 1.dp)
                     }
-                    items.forEachIndexed { idx, (label, action) ->
-                        MenuItem(label = label, onClick = action)
-                        if (idx < items.lastIndex) HorizontalDivider(thickness = 0.5.dp)
-                    }
+                    Menu(
+                        title = if (headerContent == null) title else null,
+                        items = items,
+                        icons = icons,
+                        selectedIndex = selectedIndex
+                    )
                 }
             }
         }

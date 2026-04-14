@@ -1,19 +1,10 @@
 package io.github.lukewilk.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,132 +14,129 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.lukewilk.ui.elements.navigation.MenuSidebar
 
-private data class SidebarItem(
+internal data class MainScaffoldMenuItem(
     val label: String,
-    val icon: String
+    val icon: String,
+    val selected: Boolean
 )
+
+internal data class MainScaffoldUiState(
+    val sidebarWidth: Int,
+    val defaultHeaderTitle: String?,
+    val menuItems: List<MainScaffoldMenuItem>,
+    val placeholderLabel: String?
+)
+
+internal fun mainScaffoldMenuItems(): List<Pair<String, String>> = listOf(
+    "Hardware" to "🔧",
+    "Protocols" to "📡",
+    "Electrodes" to "⚡",
+    "Signals" to "〰️",
+    "Graphs" to "📊",
+    "Goals" to "🎯",
+    "Training" to "🎓"
+)
+
+internal fun mainScaffoldSidebarWidth(isSidebarOpen: Boolean, expandedWidth: Int = 200, collapsedWidth: Int = 56): Int =
+    if (isSidebarOpen) expandedWidth else collapsedWidth
+
+internal fun mainScaffoldHeaderFallbackText(isSidebarOpen: Boolean, hasCustomHeader: Boolean): String? = when {
+    !isSidebarOpen -> "≡"
+    hasCustomHeader -> null
+    else -> "Neuro Rook"
+}
+
+internal fun mainScaffoldPlaceholderLabel(selectedTab: Int, menuItems: List<Pair<String, String>> = mainScaffoldMenuItems()): String? {
+    if (selectedTab == 0) return null
+
+    val selectedItem = menuItems.getOrNull(selectedTab) ?: return null
+    return selectedItem.first
+}
+
+internal fun mainScaffoldPlaceholderText(label: String): String = "$label screen coming soon..."
+
+internal fun mainScaffoldUiState(
+    selectedTab: Int,
+    isSidebarOpen: Boolean,
+    hasCustomHeader: Boolean,
+    menuItems: List<Pair<String, String>> = mainScaffoldMenuItems()
+): MainScaffoldUiState = MainScaffoldUiState(
+    sidebarWidth = mainScaffoldSidebarWidth(isSidebarOpen),
+    defaultHeaderTitle = if (isSidebarOpen && !hasCustomHeader) "Neuro Rook" else null,
+    menuItems = menuItems.mapIndexed { index, (label, icon) ->
+        MainScaffoldMenuItem(label = label, icon = icon, selected = index == selectedTab)
+    },
+    placeholderLabel = mainScaffoldPlaceholderLabel(selectedTab, menuItems)
+)
+
+@Composable
+internal fun MainScaffoldHeaderLabel(text: String) {
+    Text(
+        text,
+        fontSize = 20.sp,
+        color = MaterialTheme.colorScheme.onSecondaryContainer
+    )
+}
+
+@Composable
+internal fun MainScaffoldPlaceholderLabelText(label: String) {
+    Text(mainScaffoldPlaceholderText(label), color = MaterialTheme.colorScheme.onBackground)
+}
 
 @Composable
 fun MainScaffold(
     hardwareScreen: @Composable () -> Unit,
     headerContent: @Composable (() -> Unit)? = null
 ) {
-    val expandedSidebarWidth = 200.dp
-    val collapsedSidebarWidth = 56.dp
-    val sidebarItemShape = RoundedCornerShape(8.dp)
-    val menuItems = listOf(
-        SidebarItem("Hardware", "🔧"),
-        SidebarItem("Protocols", "📡"),
-        SidebarItem("Electrodes", "⚡"),
-        SidebarItem("Signals", "〰️"),
-        SidebarItem("Graphs", "📊"),
-        SidebarItem("Goals", "🎯"),
-        SidebarItem("Training", "🎓")
-    )
+    val menuItems = mainScaffoldMenuItems()
     var selectedTab by remember { mutableStateOf(0) }
     var isSidebarOpen by remember { mutableStateOf(true) }
+    val uiState = remember(selectedTab, isSidebarOpen, headerContent) {
+        mainScaffoldUiState(
+            selectedTab = selectedTab,
+            isSidebarOpen = isSidebarOpen,
+            hasCustomHeader = headerContent != null,
+            menuItems = menuItems
+        )
+    }
+    val navigationItems = uiState.menuItems.mapIndexed { index, item ->
+        item.label to { selectedTab = index }
+    }
 
     Row(Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .width(if (isSidebarOpen) expandedSidebarWidth else collapsedSidebarWidth)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(top = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp)
-                    .clickable { isSidebarOpen = !isSidebarOpen }
-                    .background(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSidebarOpen) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (headerContent != null) {
-                            headerContent()
-                        } else {
-                            Text(
-                                "Neuro Rook",
-                                fontSize = 20.sp,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                    }
-                } else {
-                    Text(
-                        "≡",
-                        fontSize = 20.sp,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            menuItems.forEachIndexed { idx, item ->
-                val selected = selectedTab == idx
-                val itemColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                        .background(
-                            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-                            shape = sidebarItemShape
-                        )
-                        .clickable { selectedTab = idx }
-                        .padding(vertical = 12.dp, horizontal = if (isSidebarOpen) 16.dp else 0.dp),
-                    horizontalArrangement = if (isSidebarOpen) Arrangement.Start else Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = item.icon,
-                        color = itemColor,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    if (isSidebarOpen) {
-                        Text(
-                            item.label,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = itemColor,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-                }
-            }
-        }
+        MenuSidebar(
+            title = uiState.defaultHeaderTitle,
+            items = navigationItems,
+            modifier = Modifier.fillMaxHeight(),
+            collapsedWidth = 56,
+            expandedWidth = 200,
+            icons = uiState.menuItems.map { it.icon },
+            selectedIndex = uiState.menuItems.indexOfFirst { it.selected },
+            expanded = isSidebarOpen,
+            onExpandedChange = { isSidebarOpen = it },
+            headerContent = headerContent
+        )
         Box(
             Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            when (selectedTab) {
-                0 -> hardwareScreen()
-                else -> PlaceholderScreen(menuItems[selectedTab].label)
+            val placeholderLabel = uiState.placeholderLabel
+            when {
+                placeholderLabel == null -> hardwareScreen()
+                else -> PlaceholderScreen(placeholderLabel)
             }
         }
     }
 }
 
 @Composable
-private fun PlaceholderScreen(label: String) {
+internal fun PlaceholderScreen(label: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("$label screen coming soon...", color = MaterialTheme.colorScheme.onBackground)
+        MainScaffoldPlaceholderLabelText(label)
     }
 }
 

@@ -15,6 +15,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+internal fun shouldUseWeightedHeaderCell(cellModifier: Modifier?): Boolean =
+    cellModifier == null || cellModifier == Modifier
+
+internal fun resolvedHeaderCellModifier(cellModifier: Modifier?, weightedCellModifier: Modifier): Modifier =
+    when {
+        cellModifier == null -> weightedCellModifier
+        cellModifier == Modifier -> weightedCellModifier
+        else -> cellModifier
+    }
+
 @Composable
 fun TableHeaderRow(
     headers: List<String>,
@@ -32,11 +42,7 @@ fun TableHeaderRow(
         headers.forEachIndexed { index, header ->
             val cellModifier = cellModifiers.getOrNull(index)
             Box(
-                modifier = if (cellModifier == null || cellModifier == Modifier) {
-                    Modifier.weight(1f)
-                } else {
-                    cellModifier
-                },
+                modifier = resolvedHeaderCellModifier(cellModifier, Modifier.weight(1f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

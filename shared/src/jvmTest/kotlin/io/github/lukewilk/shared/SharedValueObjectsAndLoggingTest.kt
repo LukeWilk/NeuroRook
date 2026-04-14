@@ -15,6 +15,7 @@ import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 /**
  * JVM coverage tests for shared value objects and logging helpers.
@@ -62,6 +63,56 @@ class SharedValueObjectsAndLoggingTest {
             assertEquals("TRACE", readLogLevelFromConfigFile(configFile, envLogLevel = "TRACE"))
             assertEquals("debug", readLogLevelFromConfigFile(configFile, envLogLevel = null))
             assertEquals(null, readLogLevelFromConfigFile(File(configFile.parentFile, "missing.conf"), envLogLevel = null))
+        } finally {
+            configFile.delete()
+        }
+    }
+
+    @Test
+    fun `jvm log level lookup ignores blank env and blank config values`() {
+        // Covers the blank-value guard branches so empty environment or file entries do not become effective log levels.
+        val blankConfigPath = createTempFile(prefix = "logger-provider-blank", suffix = ".conf")
+        val warnConfigPath = createTempFile(prefix = "logger-provider-warn", suffix = ".conf")
+        blankConfigPath.writeText("LOG_LEVEL=   \n")
+        warnConfigPath.writeText("LOG_LEVEL= warn \n")
+
+        val blankConfigFile = blankConfigPath.toFile()
+        val warnConfigFile = warnConfigPath.toFile()
+        try {
+            assertNull(readLogLevelFromConfigFile(blankConfigFile, envLogLevel = "   "))
+            assertEquals("warn", readLogLevelFromConfigFile(warnConfigFile, envLogLevel = "   "))
+        } finally {
+            blankConfigFile.delete()
+            warnConfigFile.delete()
+        }
+    }
+
+    @Test
+    fun `jvm log level lookup returns null when the config file has no log level entry`() {
+        // Covers the existing-file/no-matching-line branch so unrelated config content does not produce a phantom level.
+        val configPath = createTempFile(prefix = "logger-provider-missing-key", suffix = ".conf")
+        configPath.writeText("SOME_OTHER_KEY=value\n")
+
+        val configFile = configPath.toFile()
+        try {
+            assertNull(readLogLevelFromConfigFile(configFile, envLogLevel = null))
+        } finally {
+            configFile.delete()
+        }
+    }
+
+    @Test
+    fun `jvm log level lookup default argument matches the explicit environment-backed call`() {
+        // Covers the generated default-argument wrapper without assuming anything about the process LOG_LEVEL environment.
+        val configPath = createTempFile(prefix = "logger-provider-default-arg", suffix = ".conf")
+        configPath.writeText("LOG_LEVEL= info \n")
+
+        val configFile = configPath.toFile()
+        try {
+            assertEquals(
+                readLogLevelFromConfigFile(configFile, envLogLevel = System.getenv("LOG_LEVEL")),
+                readLogLevelFromConfigFile(configFile)
+            )
         } finally {
             configFile.delete()
         }

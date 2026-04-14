@@ -18,6 +18,84 @@ import io.github.lukewilk.ui.elements.layout.ActionButtonRow
 import io.github.lukewilk.ui.elements.layout.VerticalSpacer
 import io.github.lukewilk.ui.elements.text.SectionTitle
 
+internal fun isBoardSelectionEnabled(isConnected: Boolean, isBusy: Boolean, canSelectBoard: Boolean): Boolean =
+    !isConnected && !isBusy && canSelectBoard
+
+internal fun isSerialSuggestionSelectionEnabled(
+    serialPortSuggestions: List<SerialPortSuggestion>,
+    isConnected: Boolean,
+    isBusy: Boolean,
+    isLoadingSerialPorts: Boolean
+): Boolean = serialPortSuggestions.isNotEmpty() && !isConnected && !isBusy && !isLoadingSerialPorts
+
+internal fun isRefreshPortsEnabled(isConnected: Boolean, isBusy: Boolean, isLoadingSerialPorts: Boolean): Boolean =
+    !isConnected && !isBusy && !isLoadingSerialPorts
+
+internal fun isConnectEnabled(isConnected: Boolean, isBusy: Boolean, canConnect: Boolean): Boolean =
+    !isConnected && !isBusy && canConnect
+
+internal fun isDisconnectEnabled(isConnected: Boolean, isBusy: Boolean): Boolean =
+    isConnected && !isBusy
+
+internal fun areSerialInputFieldsEnabled(isConnected: Boolean, isBusy: Boolean): Boolean =
+    !isConnected && !isBusy
+
+internal fun selectedSerialPortSuggestionIndexValue(
+    selectedSerialPortSuggestion: Int,
+    serialPortSuggestions: List<SerialPortSuggestion>
+): Int = selectedSerialPortSuggestion.coerceIn(
+    minimumValue = 0,
+    maximumValue = serialPortSuggestions.lastIndex.coerceAtLeast(0)
+)
+
+internal fun refreshPortsButtonText(isLoadingSerialPorts: Boolean): String =
+    if (isLoadingSerialPorts) "Refreshing..." else "Refresh Ports"
+
+internal fun visibleSerialPortSupportText(serialPortSupportText: String?): String? =
+    serialPortSupportText?.takeIf { it.isNotBlank() }
+
+internal fun deviceConnectionStatusText(isConnected: Boolean): String =
+    if (isConnected) "Device Connected" else "No Device Connected"
+
+internal fun serialPortSuggestionDescriptor(suggestion: SerialPortSuggestion): String = suggestion.details.ifBlank {
+    suggestion.displayName.takeIf { it.isNotBlank() && it != suggestion.path }.orEmpty()
+}
+
+internal data class DeviceSelectionUiState(
+    val boardSelectionEnabled: Boolean,
+    val serialSuggestionSelectionEnabled: Boolean,
+    val selectedSerialPortSuggestion: Int,
+    val refreshPortsEnabled: Boolean,
+    val refreshPortsText: String,
+    val visibleSerialPortSupportText: String?,
+    val serialInputFieldsEnabled: Boolean,
+    val connectionStatusText: String,
+    val connectEnabled: Boolean,
+    val disconnectEnabled: Boolean
+)
+
+internal fun deviceSelectionUiState(
+    serialPortSuggestions: List<SerialPortSuggestion>,
+    selectedSerialPortSuggestion: Int,
+    isConnected: Boolean,
+    isBusy: Boolean,
+    isLoadingSerialPorts: Boolean,
+    serialPortSupportText: String?,
+    canSelectBoard: Boolean,
+    canConnect: Boolean
+): DeviceSelectionUiState = DeviceSelectionUiState(
+    boardSelectionEnabled = isBoardSelectionEnabled(isConnected, isBusy, canSelectBoard),
+    serialSuggestionSelectionEnabled = isSerialSuggestionSelectionEnabled(serialPortSuggestions, isConnected, isBusy, isLoadingSerialPorts),
+    selectedSerialPortSuggestion = selectedSerialPortSuggestionIndexValue(selectedSerialPortSuggestion, serialPortSuggestions),
+    refreshPortsEnabled = isRefreshPortsEnabled(isConnected, isBusy, isLoadingSerialPorts),
+    refreshPortsText = refreshPortsButtonText(isLoadingSerialPorts),
+    visibleSerialPortSupportText = visibleSerialPortSupportText(serialPortSupportText),
+    serialInputFieldsEnabled = areSerialInputFieldsEnabled(isConnected, isBusy),
+    connectionStatusText = deviceConnectionStatusText(isConnected),
+    connectEnabled = isConnectEnabled(isConnected, isBusy, canConnect),
+    disconnectEnabled = isDisconnectEnabled(isConnected, isBusy)
+)
+
 @Composable
 fun DeviceSelectionCard(
     availableBoards: List<String>,
@@ -41,6 +119,17 @@ fun DeviceSelectionCard(
     canSelectBoard: Boolean = true,
     canConnect: Boolean = true
 ) {
+    val uiState = deviceSelectionUiState(
+        serialPortSuggestions = serialPortSuggestions,
+        selectedSerialPortSuggestion = selectedSerialPortSuggestion,
+        isConnected = isConnected,
+        isBusy = isBusy,
+        isLoadingSerialPorts = isLoadingSerialPorts,
+        serialPortSupportText = serialPortSupportText,
+        canSelectBoard = canSelectBoard,
+        canConnect = canConnect
+    )
+
     PanelCard {
         CardHeader(
             icon = "\uD83D\uDD27",
@@ -53,30 +142,27 @@ fun DeviceSelectionCard(
             options = availableBoards,
             selectedIndex = selectedBoard,
             onSelected = onBoardSelected,
-            enabled = !isConnected && !isBusy && canSelectBoard
+            enabled = uiState.boardSelectionEnabled
         )
         VerticalSpacer(14.dp)
         SectionTitle("Detected Serial Devices")
         DropdownMenuBox(
             options = serialPortSuggestionLabelsFor(serialPortSuggestions),
-            selectedIndex = selectedSerialPortSuggestion.coerceIn(
-                minimumValue = 0,
-                maximumValue = serialPortSuggestions.lastIndex.coerceAtLeast(0)
-            ),
+            selectedIndex = uiState.selectedSerialPortSuggestion,
             onSelected = onSerialPortSuggestionSelected,
-            enabled = serialPortSuggestions.isNotEmpty() && !isConnected && !isBusy && !isLoadingSerialPorts
+            enabled = uiState.serialSuggestionSelectionEnabled
         )
         VerticalSpacer(10.dp)
         SecondaryButton(
             onClick = onRefreshSerialPorts,
-            enabled = !isConnected && !isBusy && !isLoadingSerialPorts,
-            text = if (isLoadingSerialPorts) "Refreshing..." else "Refresh Ports",
+            enabled = uiState.refreshPortsEnabled,
+            text = uiState.refreshPortsText,
             modifier = Modifier
         )
-        if (!serialPortSupportText.isNullOrBlank()) {
+        if (uiState.visibleSerialPortSupportText != null) {
             VerticalSpacer(8.dp)
             Text(
-                text = serialPortSupportText,
+                text = uiState.visibleSerialPortSupportText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall
             )
@@ -86,7 +172,7 @@ fun DeviceSelectionCard(
         StyledOutlinedTextField(
             value = serialPort,
             onValueChange = onSerialPortChange,
-            enabled = !isConnected && !isBusy,
+            enabled = uiState.serialInputFieldsEnabled,
             placeholder = serialPortPlaceholder,
             fontFamily = FontFamily.Monospace
         )
@@ -95,20 +181,20 @@ fun DeviceSelectionCard(
         StyledOutlinedTextField(
             value = timeout,
             onValueChange = onTimeoutChange,
-            enabled = !isConnected && !isBusy,
+            enabled = uiState.serialInputFieldsEnabled,
             placeholder = "0"
         )
         VerticalSpacer(14.dp)
         StatusIndicator(
             color = if (isConnected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
-            text = if (isConnected) "Device Connected" else "No Device Connected"
+            text = uiState.connectionStatusText
         )
         VerticalSpacer(18.dp)
         ActionButtonRow(buttons = listOf(
             {
                 PrimaryButton(
                     onClick = onConnect,
-                    enabled = !isConnected && !isBusy && canConnect,
+                    enabled = uiState.connectEnabled,
                     modifier = Modifier.weight(1f),
                     text = "Connect"
                 )
@@ -116,7 +202,7 @@ fun DeviceSelectionCard(
             {
                 SecondaryButton(
                     onClick = onDisconnect,
-                    enabled = isConnected && !isBusy,
+                    enabled = uiState.disconnectEnabled,
                     modifier = Modifier.weight(1f),
                     text = "Disconnect"
                 )
@@ -134,9 +220,7 @@ private fun serialPortSuggestionLabelsFor(suggestions: List<SerialPortSuggestion
                 append("Recommended • ")
             }
             append(suggestion.path)
-            val descriptor = suggestion.details.ifBlank {
-                suggestion.displayName.takeIf { it.isNotBlank() && it != suggestion.path }.orEmpty()
-            }
+            val descriptor = serialPortSuggestionDescriptor(suggestion)
             if (descriptor.isNotBlank()) {
                 append(" — ")
                 append(descriptor)

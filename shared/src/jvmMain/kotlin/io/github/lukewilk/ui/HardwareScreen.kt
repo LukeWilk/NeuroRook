@@ -71,47 +71,39 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
         isLoadingBoards = false
     }
 
-    val fallbackLogEntry = remember(backendApi, boardLoadError) {
-        fallbackLogEntryFor(
-            backendUnavailable = backendApi == null,
+    val displayState = remember(
+        backendApi,
+        backendLogs,
+        boardLoadError,
+        isLoadingBoards,
+        availableBoards,
+        selectedBoard,
+        serialPort,
+        serialPortSuggestions,
+        isLoadingSerialPorts,
+        serialPortLoadError,
+        hardwareState
+    ) {
+        hardwareScreenDisplayState(
+            backendApiAvailable = backendApi != null,
+            backendLogs = backendLogs,
             boardLoadError = boardLoadError,
+            isLoadingBoards = isLoadingBoards,
+            availableBoards = availableBoards,
+            selectedBoard = selectedBoard,
+            serialPort = serialPort,
+            serialPortSuggestions = serialPortSuggestions,
+            isLoadingSerialPorts = isLoadingSerialPorts,
+            serialPortLoadError = serialPortLoadError,
+            hardwareState = hardwareState,
             timestampEpochMillis = System.currentTimeMillis()
         )
     }
 
-    val displayedLogs = mergeSystemLogs(
-        backendLogs = backendLogs,
-        fallbackLogEntry = fallbackLogEntry
-    )
-
-    val boardLabels = boardLabelsFor(
-        isLoadingBoards = isLoadingBoards,
-        boardLoadError = boardLoadError,
-        availableBoards = availableBoards
-    )
-    val resolvedSelectedBoard = selectedBoard.coerceIn(0, boardLabels.lastIndex)
-    val selectedBoardId = availableBoards.getOrNull(resolvedSelectedBoard)
-    val boardsReady = !isLoadingBoards && boardLoadError == null && availableBoards.isNotEmpty()
-    val selectedSerialPortSuggestion = selectedSerialPortSuggestionIndex(
-        serialPort = serialPort,
-        serialPortSuggestions = serialPortSuggestions
-    )
-    val serialPortPlaceholder = serialPortPlaceholderFor(
-        selectedBoardId = selectedBoardId,
-        serialPortSuggestions = serialPortSuggestions
-    )
-    val serialPortSupportText = serialPortSupportTextFor(
-        selectedBoardId = selectedBoardId,
-        isLoadingSerialPorts = isLoadingSerialPorts,
-        serialPortLoadError = serialPortLoadError,
-        serialPortSuggestions = serialPortSuggestions
-    )
-    val channels = channelStatesFor(hardwareState)
-
-    LaunchedEffect(backendApi, selectedBoardId, serialPortRefreshToken) {
+    LaunchedEffect(backendApi, displayState.selectedBoardId, serialPortRefreshToken) {
         val serialPortUiState = loadSerialPortUiState(
             backendApi = backendApi,
-            selectedBoardId = selectedBoardId,
+            selectedBoardId = displayState.selectedBoardId,
             serialPort = serialPort,
             lastAutoSelectedSerialPort = lastAutoSelectedSerialPort,
             hasManualSerialPortSelection = hasManualSerialPortSelection
@@ -136,10 +128,9 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
     }
 
     val connectToSelectedBoard: () -> Unit = {
-        val boardId = availableBoards.getOrNull(resolvedSelectedBoard)
-        if (boardId != null) {
-            val timeoutSeconds = timeout.toIntOrNull() ?: 0
-            runBackendAction { connect(boardId, serialPort.trim(), timeoutSeconds) }
+        val request = connectRequestFor(availableBoards, displayState.resolvedSelectedBoard, serialPort, timeout)
+        if (request != null) {
+            runBackendAction { connect(request.boardId, request.serialPort, request.timeoutSeconds) }
         }
     }
 
@@ -153,13 +144,13 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
 
     val toggleChannel: (Int, Boolean) -> Unit = { id, enabled ->
         runBackendAction {
-            if (enabled) enableChannel(id) else disableChannel(id)
+            setChannelEnabled(id, enabled)
         }
     }
 
     val toggleRld: (Int, Boolean) -> Unit = { id, enabled ->
         runBackendAction {
-            if (enabled) enableRLD(id) else disableRLD(id)
+            setRldEnabled(id, enabled)
         }
     }
 
@@ -187,45 +178,45 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
             ) {
                 Box(Modifier.padding(top = cardOuterTopPadding, bottom = cardOuterMidPadding)) {
                     DeviceSelectionCard(
-                        availableBoards = boardLabels,
-                        selectedBoard = resolvedSelectedBoard,
+                        availableBoards = displayState.boardLabels,
+                        selectedBoard = displayState.resolvedSelectedBoard,
                         onBoardSelected = { selectedBoard = it },
                         serialPort = serialPort,
                         onSerialPortChange = {
                             serialPort = it
                             hasManualSerialPortSelection = true
                         },
-                        serialPortPlaceholder = serialPortPlaceholder,
+                        serialPortPlaceholder = displayState.serialPortPlaceholder,
                         serialPortSuggestions = serialPortSuggestions,
-                        selectedSerialPortSuggestion = selectedSerialPortSuggestion,
+                        selectedSerialPortSuggestion = displayState.selectedSerialPortSuggestion,
                         onSerialPortSuggestionSelected = { suggestionIndex ->
-                            serialPort = serialPortSuggestions.getOrNull(suggestionIndex)?.path.orEmpty()
+                            serialPort = selectedSerialPortPathFor(serialPortSuggestions, suggestionIndex)
                             hasManualSerialPortSelection = true
                         },
                         onRefreshSerialPorts = refreshSerialPorts,
                         isLoadingSerialPorts = isLoadingSerialPorts,
-                        serialPortSupportText = serialPortSupportText,
+                        serialPortSupportText = displayState.serialPortSupportText,
                         timeout = timeout,
                         onTimeoutChange = { timeout = it },
                         isConnected = hardwareState.connected,
                         isBusy = isBusy,
                         onConnect = connectToSelectedBoard,
                         onDisconnect = disconnectFromBoard,
-                        canSelectBoard = boardsReady,
-                        canConnect = boardsReady
+                        canSelectBoard = displayState.boardsReady,
+                        canConnect = displayState.boardsReady
                     )
                 }
                 Box(Modifier.padding(vertical = cardOuterMidPadding)) {
-                    SystemLogCard(displayedLogs)
+                    SystemLogCard(displayState.displayedLogs)
                 }
                 Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterBottomPadding)) {
                     BoardControlCard(
-                        availableBoards = boardLabels,
-                        selectedBoard = resolvedSelectedBoard,
+                        availableBoards = displayState.boardLabels,
+                        selectedBoard = displayState.resolvedSelectedBoard,
                         isConnected = hardwareState.connected,
                         isStreaming = hardwareState.streaming,
                         isBusy = isBusy,
-                        channels = channels,
+                        channels = displayState.channels,
                         onChannelToggle = toggleChannel,
                         onRldToggle = toggleRld,
                         onVerifyChannels = verifyChannels,
@@ -254,36 +245,36 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
                     ) {
                         Box(Modifier.padding(top = cardOuterTopPadding, bottom = cardOuterMidPadding)) {
                             DeviceSelectionCard(
-                                availableBoards = boardLabels,
-                                selectedBoard = resolvedSelectedBoard,
+                                availableBoards = displayState.boardLabels,
+                                selectedBoard = displayState.resolvedSelectedBoard,
                                 onBoardSelected = { selectedBoard = it },
                                 serialPort = serialPort,
                                 onSerialPortChange = {
                                     serialPort = it
                                     hasManualSerialPortSelection = true
                                 },
-                                serialPortPlaceholder = serialPortPlaceholder,
+                                serialPortPlaceholder = displayState.serialPortPlaceholder,
                                 serialPortSuggestions = serialPortSuggestions,
-                                selectedSerialPortSuggestion = selectedSerialPortSuggestion,
+                                selectedSerialPortSuggestion = displayState.selectedSerialPortSuggestion,
                                 onSerialPortSuggestionSelected = { suggestionIndex ->
-                                    serialPort = serialPortSuggestions.getOrNull(suggestionIndex)?.path.orEmpty()
+                                    serialPort = selectedSerialPortPathFor(serialPortSuggestions, suggestionIndex)
                                     hasManualSerialPortSelection = true
                                 },
                                 onRefreshSerialPorts = refreshSerialPorts,
                                 isLoadingSerialPorts = isLoadingSerialPorts,
-                                serialPortSupportText = serialPortSupportText,
+                                serialPortSupportText = displayState.serialPortSupportText,
                                 timeout = timeout,
                                 onTimeoutChange = { timeout = it },
                                 isConnected = hardwareState.connected,
                                 isBusy = isBusy,
                                 onConnect = connectToSelectedBoard,
                                 onDisconnect = disconnectFromBoard,
-                                canSelectBoard = boardsReady,
-                                canConnect = boardsReady
+                                canSelectBoard = displayState.boardsReady,
+                                canConnect = displayState.boardsReady
                             )
                         }
                         Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterBottomPadding)) {
-                            SystemLogCard(displayedLogs)
+                            SystemLogCard(displayState.displayedLogs)
                         }
                     }
                     Box(
@@ -292,12 +283,12 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
                             .padding(top = cardOuterTopPadding, bottom = cardOuterBottomPadding)
                     ) {
                         BoardControlCard(
-                            availableBoards = boardLabels,
-                            selectedBoard = resolvedSelectedBoard,
+                            availableBoards = displayState.boardLabels,
+                            selectedBoard = displayState.resolvedSelectedBoard,
                             isConnected = hardwareState.connected,
                             isStreaming = hardwareState.streaming,
                             isBusy = isBusy,
-                            channels = channels,
+                            channels = displayState.channels,
                             onChannelToggle = toggleChannel,
                             onRldToggle = toggleRld,
                             onVerifyChannels = verifyChannels,
@@ -324,6 +315,105 @@ internal data class SerialPortUiState(
     val serialPort: String,
     val lastAutoSelectedSerialPort: String?
 )
+
+internal data class ConnectRequest(
+    val boardId: String,
+    val serialPort: String,
+    val timeoutSeconds: Int
+)
+
+internal data class HardwareScreenDisplayState(
+    val displayedLogs: List<SystemLogEntry>,
+    val boardLabels: List<String>,
+    val resolvedSelectedBoard: Int,
+    val selectedBoardId: String?,
+    val boardsReady: Boolean,
+    val selectedSerialPortSuggestion: Int,
+    val serialPortPlaceholder: String,
+    val serialPortSupportText: String,
+    val channels: List<ChannelState>
+)
+
+internal fun hardwareScreenDisplayState(
+    backendApiAvailable: Boolean,
+    backendLogs: List<SystemLogEntry>,
+    boardLoadError: String?,
+    isLoadingBoards: Boolean,
+    availableBoards: List<String>,
+    selectedBoard: Int,
+    serialPort: String,
+    serialPortSuggestions: List<SerialPortSuggestion>,
+    isLoadingSerialPorts: Boolean,
+    serialPortLoadError: String?,
+    hardwareState: HardwareState,
+    timestampEpochMillis: Long
+): HardwareScreenDisplayState {
+    val fallbackLogEntry = fallbackLogEntryFor(
+        backendUnavailable = !backendApiAvailable,
+        boardLoadError = boardLoadError,
+        timestampEpochMillis = timestampEpochMillis
+    )
+    val displayedLogs = mergeSystemLogs(
+        backendLogs = backendLogs,
+        fallbackLogEntry = fallbackLogEntry
+    )
+    val boardLabels = boardLabelsFor(
+        isLoadingBoards = isLoadingBoards,
+        boardLoadError = boardLoadError,
+        availableBoards = availableBoards
+    )
+    val resolvedSelectedBoard = selectedBoard.coerceIn(0, boardLabels.lastIndex)
+    val selectedBoardId = availableBoards.getOrNull(resolvedSelectedBoard)
+    return HardwareScreenDisplayState(
+        displayedLogs = displayedLogs,
+        boardLabels = boardLabels,
+        resolvedSelectedBoard = resolvedSelectedBoard,
+        selectedBoardId = selectedBoardId,
+        boardsReady = !isLoadingBoards && boardLoadError == null && availableBoards.isNotEmpty(),
+        selectedSerialPortSuggestion = selectedSerialPortSuggestionIndex(
+            serialPort = serialPort,
+            serialPortSuggestions = serialPortSuggestions
+        ),
+        serialPortPlaceholder = serialPortPlaceholderFor(
+            selectedBoardId = selectedBoardId,
+            serialPortSuggestions = serialPortSuggestions
+        ),
+        serialPortSupportText = serialPortSupportTextFor(
+            selectedBoardId = selectedBoardId,
+            isLoadingSerialPorts = isLoadingSerialPorts,
+            serialPortLoadError = serialPortLoadError,
+            serialPortSuggestions = serialPortSuggestions
+        ),
+        channels = channelStatesFor(hardwareState)
+    )
+}
+
+internal fun connectRequestFor(
+    availableBoards: List<String>,
+    resolvedSelectedBoard: Int,
+    serialPort: String,
+    timeout: String
+): ConnectRequest? {
+    val boardId = availableBoards.getOrNull(resolvedSelectedBoard) ?: return null
+    return ConnectRequest(
+        boardId = boardId,
+        serialPort = serialPort.trim(),
+        timeoutSeconds = timeout.toIntOrNull() ?: 0
+    )
+}
+
+internal fun selectedSerialPortPathFor(
+    serialPortSuggestions: List<SerialPortSuggestion>,
+    suggestionIndex: Int
+): String = serialPortSuggestions.getOrNull(suggestionIndex)?.path.orEmpty()
+
+internal suspend fun BackendApi.setChannelEnabled(channelId: Int, enabled: Boolean) {
+    if (enabled) enableChannel(channelId) else disableChannel(channelId)
+}
+
+internal suspend fun BackendApi.setRldEnabled(channelId: Int, enabled: Boolean) {
+    if (enabled) enableRLD(channelId) else disableRLD(channelId)
+}
 
 internal fun loadBoardState(backendApi: BackendApi?): BoardLoadState {
     if (backendApi == null) {
@@ -484,15 +574,22 @@ internal fun channelStatesFor(hardwareState: HardwareState): List<ChannelState> 
     }
 }
 
+internal fun formatBoardLabelPart(part: String): String =
+    part.lowercase().replaceFirstChar { char ->
+        if (char.isLowerCase()) char.titlecase() else char.toString()
+    }
+
 internal fun formatBoardLabel(boardId: String): String = boardId
     .removeSuffix("_BOARD")
     .split('_')
     .filter { it.isNotBlank() }
-    .joinToString(" ") { part ->
-        part.lowercase().replaceFirstChar { char ->
-            if (char.isLowerCase()) char.titlecase() else char.toString()
-        }
-    }
+    .joinToString(" ", transform = ::formatBoardLabelPart)
+
+internal fun preferredSerialPortPath(serialPortSuggestions: List<SerialPortSuggestion>): String =
+    serialPortSuggestions.firstOrNull { it.isRecommended }?.path
+        ?: serialPortSuggestions.firstOrNull { it.isUsbDevice }?.path
+        ?: serialPortSuggestions.firstOrNull()?.path
+        .orEmpty()
 
 internal fun defaultSerialPortFor(
     selectedBoardId: String?,
@@ -500,10 +597,7 @@ internal fun defaultSerialPortFor(
 ): String {
     if (selectedBoardId.equals("SYNTHETIC_BOARD", ignoreCase = true)) return ""
 
-    return serialPortSuggestions.firstOrNull { it.isRecommended }?.path
-        ?: serialPortSuggestions.firstOrNull { it.isUsbDevice }?.path
-        ?: serialPortSuggestions.firstOrNull()?.path
-        .orEmpty()
+    return preferredSerialPortPath(serialPortSuggestions)
 }
 
 internal fun shouldAutoSelectSerialPort(

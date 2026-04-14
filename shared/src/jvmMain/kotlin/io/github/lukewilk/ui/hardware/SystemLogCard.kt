@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,7 +82,7 @@ fun SystemLogCard(logs: List<SystemLogEntry>, modifier: Modifier = Modifier) {
                     ) { log ->
                         Text(
                             text = "${formatLogTimestamp(log.timestampEpochMillis)} • ${log.severity.name} • ${log.message}",
-                            color = severityColor(log.severity),
+                            color = severityColorFor(MaterialTheme.colorScheme, log.severity),
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -94,11 +95,10 @@ fun SystemLogCard(logs: List<SystemLogEntry>, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun severityColor(severity: SystemLogSeverity): Color = when (severity) {
-    SystemLogSeverity.INFO -> MaterialTheme.colorScheme.primary
-    SystemLogSeverity.WARN -> MaterialTheme.colorScheme.tertiary
-    SystemLogSeverity.ERROR -> MaterialTheme.colorScheme.error
+internal fun severityColorFor(colorScheme: ColorScheme, severity: SystemLogSeverity): Color = when (severity) {
+    SystemLogSeverity.INFO -> colorScheme.primary
+    SystemLogSeverity.WARN -> colorScheme.tertiary
+    SystemLogSeverity.ERROR -> colorScheme.error
 }
 
 private val logTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")

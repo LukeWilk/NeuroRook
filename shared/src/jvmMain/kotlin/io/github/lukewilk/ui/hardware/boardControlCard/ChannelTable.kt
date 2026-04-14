@@ -24,6 +24,18 @@ import androidx.compose.ui.unit.sp
 import io.github.lukewilk.ui.ChannelState
 import io.github.lukewilk.ui.elements.tables.TableHeaderRow
 
+internal data class ChannelTableRowUiState(
+    val usesEvenBackground: Boolean,
+    val showDivider: Boolean,
+    val isConfigured: Boolean
+)
+
+internal fun channelTableRowUiState(index: Int, lastIndex: Int, status: String): ChannelTableRowUiState = ChannelTableRowUiState(
+    usesEvenBackground = index % 2 == 0,
+    showDivider = index < lastIndex,
+    isConfigured = status == "Configured"
+)
+
 @Composable
 fun ChannelTable(
     channels: List<ChannelState>,
@@ -45,7 +57,8 @@ fun ChannelTable(
             cellModifiers = headerCellModifiers
         )
         channels.forEachIndexed { index, ch ->
-            val rowBackground = if (index % 2 == 0) {
+            val rowUiState = channelTableRowUiState(index, channels.lastIndex, ch.status)
+            val rowBackground = if (rowUiState.usesEvenBackground) {
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
             } else {
                 MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.18f)
@@ -93,10 +106,10 @@ fun ChannelTable(
                     modifier = Modifier.weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    StatusBadge(ch.status)
+                    StatusBadge(ch.status, rowUiState.isConfigured)
                 }
             }
-            if (index < channels.lastIndex) {
+            if (rowUiState.showDivider) {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
@@ -124,8 +137,7 @@ private fun TableCell(
 }
 
 @Composable
-private fun StatusBadge(status: String) {
-    val isConfigured = status == "Configured"
+private fun StatusBadge(status: String, isConfigured: Boolean) {
     val containerColor = if (isConfigured) {
         MaterialTheme.colorScheme.tertiaryContainer
     } else {

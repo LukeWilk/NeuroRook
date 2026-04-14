@@ -14,7 +14,18 @@ internal fun readLogLevelFromConfigFile(
     val logLevelLine = configFile.readLines()
         .firstOrNull { it.trim().startsWith("LOG_LEVEL=") }
 
-    return logLevelLine?.substringAfter("LOG_LEVEL=")?.trim()?.takeIf { it.isNotBlank() }
+    return parsedConfigLogLevel(logLevelLine)
+}
+
+internal fun parsedConfigLogLevel(logLevelLine: String?): String? {
+    if (logLevelLine == null) return null
+
+    val normalizedLine = logLevelLine.trim()
+    if (!normalizedLine.startsWith("LOG_LEVEL=")) return null
+
+    val trimmedValue = normalizedLine.removePrefix("LOG_LEVEL=").trim()
+    if (trimmedValue.isBlank()) return null
+    return trimmedValue
 }
 
 actual fun readLogLevelFromConfig(): String? = readLogLevelFromConfigFile(File("NeuroRook.conf"))
