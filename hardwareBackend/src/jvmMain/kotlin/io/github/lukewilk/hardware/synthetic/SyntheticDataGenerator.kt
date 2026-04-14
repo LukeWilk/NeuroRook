@@ -3,7 +3,7 @@ package io.github.lukewilk.hardware.synthetic
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.WaveType as SharedWaveType
 import co.touchlab.kermit.Logger
-import io.github.lukewilk.hardware.LoggerProvider
+import io.github.lukewilk.shared.logging.LoggerProvider
 
 object SyntheticDataGenerator {
     private val logger = LoggerProvider.getLogger("SyntheticDataGenerator")

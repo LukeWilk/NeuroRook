@@ -1,5 +1,7 @@
 # Root .gitignore for NeuroRook
 
+# Ignore hidden files and directories
+.*
 
 # IntelliJ / Android Studio
 *.iml
@@ -55,6 +57,4 @@ yarn-error.log*
 /.idea/caches/
 *.tmp
 *.swp
-
-# Dev helpers
-/dev.sh
+package-lock.json

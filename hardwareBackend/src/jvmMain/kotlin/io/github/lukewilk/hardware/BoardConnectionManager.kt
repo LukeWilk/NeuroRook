@@ -3,12 +3,12 @@ package io.github.lukewilk.hardware
 import brainflow.BoardIds
 import brainflow.BoardShim
 import brainflow.BrainFlowInputParams
-import co.touchlab.kermit.Logger
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.SyntheticMode
 import io.github.lukewilk.shared.WaveSpec as SharedWaveSpec
 import io.github.lukewilk.shared.WaveType as SharedWaveType
+import io.github.lukewilk.shared.logging.LoggerProvider
 import io.github.lukewilk.hardware.synthetic.SyntheticDataGenerator
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -18,7 +18,7 @@ import kotlinx.coroutines.Job
 /**
  * Manages connection/disconnection to BrainFlow-compatible board.
  */
-class BoardConnectionManager(
+open class BoardConnectionManager(
     val stateStore: StateStore<HardwareState>,
     private val boardShimFactory: (BoardIds, BrainFlowInputParams) -> BoardShim =
         { boardId, params -> BoardShim(boardId, params) },
@@ -77,7 +77,10 @@ class BoardConnectionManager(
                 }
             }
             stateStore.update {
-                it.copy(enabledChannels = it.enabledChannels.filter { ch -> ch != index })
+                it.copy(
+                    enabledChannels = it.enabledChannels.filter { ch -> ch != index },
+                    verifiedChannels = it.verifiedChannels.filter { ch -> ch != index }
+                )
             }
         } catch (e: Exception) {
             logger.e(e) { "Failed to disable channel $index on board: ${e.message}" }
@@ -115,21 +118,23 @@ class BoardConnectionManager(
         }
     }
 
-    fun connect(boardId: BoardIds, serialPort: String): Boolean {
+    fun connect(boardId: BoardIds, serialPort: String, timeoutSeconds: Int = 0): Boolean {
         try {
             val params = BrainFlowInputParams()
             params.serial_port = serialPort
+            params.timeout = timeoutSeconds
             logger.i { "Attempting to connect: " +
                     "boardId=$boardId, " +
                     "serialPort=$serialPort, " +
+                    "timeoutSeconds=$timeoutSeconds, " +
                     "params=[serial_port=${params.serial_port}," +
+                    " timeout=${params.timeout}," +
                     " ip_address=${params.ip_address}," +
                     " mac_address=${params.mac_address}]" }
-            boardShim = boardShimFactory(boardId, params)
             val isSyntheticBoard = boardId == BoardIds.SYNTHETIC_BOARD
-            if (isSyntheticBoard) {
+            val createdShim = if (isSyntheticBoard) {
                 // Create a lightweight synthetic BoardShim subclass which returns generated data without native session
-                boardShim = object : BoardShim(boardId, params) {
+                object : BoardShim(boardId, params) {
                     override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                         val st = stateStore.get()
                         val samples = if (num_datapoints <= 0) 1 else num_datapoints
@@ -148,27 +153,20 @@ class BoardConnectionManager(
                     }
                 }
             } else {
-                boardShim = boardShimFactory(boardId, params)
+                boardShimFactory(boardId, params)
             }
+            boardShim = createdShim
             // For synthetic board, avoid calling native prepare_session which can conflict with other tests
             if (!isSyntheticBoard) {
                 try {
-                    boardShim?.prepare_session()
+                    createdShim.prepare_session()
                 } catch (e: Exception) {
                     // If another board is already created in this JVM, try to release and retry once
-                    if (e is brainflow.BrainFlowError && e.message?.contains("ANOTHER_BOARD_IS_CREATED_ERROR") == true) {
-                        logger.w(e) { "prepare_session failed with ANOTHER_BOARD_IS_CREATED_ERROR, attempting release and retry" }
-                        try {
-                            boardShim?.release_session()
-                        } catch (re: Exception) {
-                            logger.w(re) { "release_session during retry failed: ${re.message}" }
-                        }
-                        // retry once
-                        boardShim = boardShimFactory(boardId, params)
-                        boardShim?.prepare_session()
-                    } else {
+                    val shouldRetryPrepareSession = isAnotherBoardCreatedError(e)
+                    if (!shouldRetryPrepareSession) {
                         throw e
                     }
+                    retryPrepareSession(boardId, params)
                 }
             } else {
                 // synthetic board: no native session required
@@ -186,11 +184,13 @@ class BoardConnectionManager(
             val prevChannels = stateStore.get().channels
             stateStore.update { it.copy(
                 connected = true,
+                streaming = false,
                 synthetic = isSyntheticBoard,
                 samplingRateHz = if (prevSampling > 0) prevSampling else detectedSamplingRate,
                 channels = if (prevChannels > 0) prevChannels else detectedChannels,
                 enabledChannels = if (prevEnabledChannels.isNotEmpty()) prevEnabledChannels else emptyList(),
-                rldEnabled = if (prevRldEnabled.isNotEmpty()) prevRldEnabled else emptyList()
+                rldEnabled = if (prevRldEnabled.isNotEmpty()) prevRldEnabled else emptyList(),
+                verifiedChannels = emptyList()
             ) }
             logger.d { "After connect state update, enabledChannels = ${stateStore.get().enabledChannels}" }
             logger.i { "After connect: enabledChannels = ${stateStore.get().enabledChannels}" }
@@ -199,11 +199,13 @@ class BoardConnectionManager(
             logger.e(e) { "BrainFlow connection error on $serialPort: ${e.message}" }
             stateStore.update { it.copy(
                 connected = false,
+                streaming = false,
                 synthetic = false,
                 samplingRateHz = 0,
                 channels = 0,
                 enabledChannels = emptyList(),
-                rldEnabled = emptyList()
+                rldEnabled = emptyList(),
+                verifiedChannels = emptyList()
             ) }
         }
         return false
@@ -214,16 +216,20 @@ class BoardConnectionManager(
             // If synthetic board, don't call native start_stream which requires a real BoardShim session
             if (stateStore.get().synthetic) {
                 streamingActive.set(true)
+                stateStore.update { it.copy(streaming = true) }
                 logger.i { "Synthetic board: simulated startStream (no native call)" }
                 return
             }
             // For real boards, attempt to start native stream first, then mark streaming active on success
             try {
-                boardShim?.start_stream(bufferSize, streamerParams)
+                val shim = boardShim ?: throw IllegalStateException("Cannot start a real-board stream without an active BoardShim session")
+                shim.start_stream(bufferSize, streamerParams)
                 streamingActive.set(true)
+                stateStore.update { it.copy(streaming = true) }
                 logger.i { "Started stream with bufferSize=$bufferSize, streamerParams='$streamerParams'" }
             } catch (e: Exception) {
                 streamingActive.set(false)
+                stateStore.update { it.copy(streaming = false) }
                 throw e
             }
         } catch (e: Exception) {
@@ -232,14 +238,13 @@ class BoardConnectionManager(
     }
 
     fun stopStream() {
-        // Immediately mark as not connected so loops exit quickly
+        // Mark streaming not active immediately
+        streamingActive.set(false)
         try {
-            stateStore.update { it.copy(connected = false) }
+            stateStore.update { it.copy(streaming = false) }
         } catch (e: Exception) {
             logger.e(e) { "Failed to update stateStore before stopStream: ${e.message}" }
         }
-        // Mark streaming not active immediately
-        streamingActive.set(false)
         // cancel registered job if present
         cancelRegisteredStreamingJob()
         try {
@@ -260,7 +265,7 @@ class BoardConnectionManager(
             t.start()
             try {
                 t.join(500) // wait up to 500ms
-            } catch (ie: InterruptedException) {
+            } catch (_: InterruptedException) {
                 logger.w { "Interrupted while waiting for native stop_stream thread" }
             }
             if (t.isAlive) {
@@ -283,11 +288,22 @@ class BoardConnectionManager(
                 logger.i { "Synthetic board: skipping release_session" }
             }
         } catch (_: Exception) {}
-        stateStore.update { it.copy(connected = false, synthetic = false, samplingRateHz = 0) }
+        stateStore.update {
+            it.copy(
+                connected = false,
+                streaming = false,
+                synthetic = false,
+                samplingRateHz = 0,
+                channels = 0,
+                enabledChannels = emptyList(),
+                rldEnabled = emptyList(),
+                verifiedChannels = emptyList()
+            )
+        }
         boardShim = null
     }
 
-    fun generateSyntheticData(samples: Int): Array<DoubleArray> {
+    open fun generateSyntheticData(samples: Int): Array<DoubleArray> {
         val st = stateStore.get()
         return if (st.synthetic && st.syntheticMode == SyntheticMode.WAVE_GENERATOR) {
             SyntheticDataGenerator.generate(st, samples)
@@ -332,7 +348,7 @@ class BoardConnectionManager(
         }
     }
 
-    fun registerStreamingJob(job: Job?) {
+    open fun registerStreamingJob(job: Job?) {
         streamingJobRef.set(job)
         if (job == null) {
             logger.d { "registerStreamingJob: cleared" }
@@ -348,15 +364,7 @@ class BoardConnectionManager(
                 logger.d { "cancelRegisteredStreamingJob: cancelling job $j" }
                 j.cancel()
                 try {
-                    kotlinx.coroutines.runBlocking {
-                        val waited = kotlinx.coroutines.withTimeoutOrNull(500) {
-                            try {
-                                j.join()
-                                true
-                            } catch (_: Exception) { false }
-                        }
-                        if (waited == true) logger.d { "cancelRegisteredStreamingJob: job joined" } else logger.w { "cancelRegisteredStreamingJob: job did not finish within timeout" }
-                    }
+                    awaitRegisteredStreamingJob(j)
                 } catch (re: Exception) {
                     logger.w { "cancelRegisteredStreamingJob: runBlocking join failed: ${re.message}" }
                 }
@@ -364,5 +372,34 @@ class BoardConnectionManager(
                 logger.d { "cancelRegisteredStreamingJob: no job registered" }
             }
         } catch (_: Exception) {}
+    }
+
+    protected open fun awaitRegisteredStreamingJob(job: Job) {
+        kotlinx.coroutines.runBlocking {
+            val waited = kotlinx.coroutines.withTimeoutOrNull(500) {
+                try {
+                    job.join()
+                    true
+                } catch (_: Exception) { false }
+            }
+            if (waited == true) logger.d { "cancelRegisteredStreamingJob: job joined" } else logger.w { "cancelRegisteredStreamingJob: job did not finish within timeout" }
+        }
+    }
+
+    internal open fun isAnotherBoardCreatedError(error: Exception): Boolean {
+        return error.message?.contains("ANOTHER_BOARD_IS_CREATED_ERROR") == true
+    }
+
+    internal open fun retryPrepareSession(boardId: BoardIds, params: BrainFlowInputParams) {
+        logger.w { "prepare_session failed with ANOTHER_BOARD_IS_CREATED_ERROR, attempting release and retry" }
+        try {
+            boardShim?.release_session()
+        } catch (re: Exception) {
+            logger.w(re) { "release_session during retry failed: ${re.message}" }
+        }
+        // retry once
+        val replacementShim = boardShimFactory(boardId, params)
+        boardShim = replacementShim
+        replacementShim.prepare_session()
     }
 }

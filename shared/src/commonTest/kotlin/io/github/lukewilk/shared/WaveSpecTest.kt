@@ -6,7 +6,8 @@ import kotlin.test.assertNotEquals
 
 class WaveSpecTest {
     @Test
-    fun testWaveSpecEquality() {
+    fun `wave spec equality stays value based`() {
+        // Confirms waveform presets behave like value objects when reused in shared state.
         val w1 = WaveSpec(true, WaveType.SINE, 1.0, 10.0, 0.0)
         val w2 = WaveSpec(true, WaveType.SINE, 1.0, 10.0, 0.0)
         val w3 = WaveSpec(false, WaveType.SQUARE, 2.0, 20.0, 1.0)
@@ -15,7 +16,8 @@ class WaveSpecTest {
     }
 
     @Test
-    fun testWaveSpecFields() {
+    fun `wave spec exposes each configured waveform field`() {
+        // Documents the constructor-to-property mapping used by the waveform editor.
         val ws = WaveSpec(true, WaveType.TRIANGLE, 2.5, 15.0, 0.5)
         assertEquals(true, ws.enabled)
         assertEquals(WaveType.TRIANGLE, ws.type)
@@ -24,4 +26,3 @@ class WaveSpecTest {
         assertEquals(0.5, ws.phaseShiftRad)
     }
 }
-

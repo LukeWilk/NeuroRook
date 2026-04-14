@@ -2,210 +2,273 @@ package io.github.lukewilk.hardware
 
 import brainflow.BoardIds
 import brainflow.BoardShim
-import kotlin.test.Test
-import kotlin.test.assertTrue
-import kotlin.test.assertEquals
-import kotlinx.coroutines.runBlocking
-import org.junit.After
-import co.touchlab.kermit.Logger
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 import org.mockito.Mockito
 import org.mockito.kotlin.any
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 
-class BoardConnectionManagerTest {
-    private val logger = LoggerProvider.getLogger("BoardConnectionManagerTest")
+/**
+ * Connection and channel/RLD configuration tests for `BoardConnectionManager`.
+ */
+class BoardConnectionManagerTest : BoardConnectionManagerTestSupport() {
 
-    val stateStore = StateStore(HardwareState())
-    val manager = BoardConnectionManager(stateStore)
-
-    @After
-    fun tearDown() {
-        runBlocking {
-            manager.close()
-        }
-    }
-
+    /** Verifies the synthetic board connects successfully without requiring a native session. */
     @Test
-    fun testConnectReturnsBoolean() = runBlocking {
-        val result: Boolean = manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
-        assertTrue(result, "Should connect() return Boolean and handle exceptions gracefully")
-        manager.startStream()
-        logger.i { "BoardConnectionManager connect() result: $result" }
-        manager.stopStream()
-        manager.close()
-    }
-
-    @Test
-    fun testConnectSyntheticBoard() = runBlocking {
+    fun `connect synthetic board succeeds`() = runBlocking {
         val result = manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
-        assertTrue(result, "Should connect successfully to SYNTHETIC_BOARD")
-        logger.i { "BoardConnectionManager connect() to SYNTHETIC_BOARD result: $result" }
+
+        assertTrue(result, "Expected SYNTHETIC_BOARD to connect successfully")
     }
 
+    /** Verifies `isConnected()` follows connect and close state transitions. */
     @Test
-    fun testIsConnectedReflectsState() = runBlocking {
-        assertTrue(!manager.state.value.connected, "Should not be connected initially")
+    fun `is connected reflects connection state`() = runBlocking {
+        assertTrue(!manager.state.value.connected, "Expected the manager to start disconnected")
+
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
-        assertTrue(manager.state.value.connected, "Should be connected after connect()")
+        assertTrue(manager.state.value.connected, "Expected connect() to mark the manager connected")
+
         manager.close()
-        assertTrue(!manager.state.value.connected, "Should not be connected after close()")
+        assertTrue(!manager.state.value.connected, "Expected close() to reset the connected flag")
     }
 
+    /** Verifies closing without an active session is a no-op for the public connection state. */
     @Test
-    fun testCloseHandlesNoSession() = runBlocking {
+    fun `close handles an absent session`() = runBlocking {
         manager.close()
-        assertTrue(!manager.state.value.connected, "Should not be connected after close() with no session")
+
+        assertTrue(!manager.state.value.connected, "Expected close() without a session to keep the manager disconnected")
     }
 
+    /** Verifies failed connections return false and leave the state disconnected. */
     @Test
-    fun testConnectHandlesException() = runBlocking {
+    fun `connect handles connection exceptions`() = runBlocking {
         val result = manager.connect(boardId = BoardIds.NO_BOARD, serialPort = "invalid")
-        assertTrue(!result, "Should return false on failed connect")
-        assertTrue(!manager.state.value.connected, "Should not be connected after failed connect")
+
+        assertTrue(!result, "Expected connection failure to return false")
+        assertTrue(!manager.state.value.connected, "Expected failed connection attempts to leave the manager disconnected")
     }
 
+    /** Verifies channel toggles update the enabled-channel state for a connected synthetic board. */
     @Test
-    fun testEnableDisableChannelUpdatesState() = runBlocking {
+    fun `enable and disable channel update state`() = runBlocking {
+        manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
+
+        manager.enableChannel(0)
+        assertTrue(0 in manager.state.value.enabledChannels, "Expected channel 0 to be enabled")
+
+        manager.disableChannel(0)
+        assertTrue(0 !in manager.state.value.enabledChannels, "Expected channel 0 to be disabled")
+    }
+
+    /** Verifies channel and RLD changes still update local state even when no board is connected. */
+    @Test
+    fun `channel and rld operations without connection only touch local state`() {
+        val disconnectedManager = BoardConnectionManager(StateStore(HardwareState(synthetic = false)))
+
+        disconnectedManager.enableChannel(1)
+        disconnectedManager.enableRLD(1)
+        assertEquals(listOf(1), disconnectedManager.state.value.enabledChannels)
+        assertEquals(listOf(1), disconnectedManager.state.value.rldEnabled)
+
+        disconnectedManager.disableChannel(1)
+        disconnectedManager.disableRLD(1)
+        assertTrue(disconnectedManager.state.value.enabledChannels.isEmpty())
+        assertTrue(disconnectedManager.state.value.rldEnabled.isEmpty())
+    }
+
+    /** Verifies repeated channel enable calls stay idempotent and disabling clears verification state. */
+    @Test
+    fun `enable channel is idempotent and disable clears verified channels`() = runBlocking {
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
         manager.enableChannel(0)
-        assertTrue(0 in manager.state.value.enabledChannels, "Channel 0 should be enabled")
+        manager.enableChannel(0)
+        stateStore.update { it.copy(verifiedChannels = listOf(0)) }
+
+        assertEquals(listOf(0), manager.state.value.enabledChannels)
+
         manager.disableChannel(0)
-        assertTrue(0 !in manager.state.value.enabledChannels, "Channel 0 should be disabled")
+        assertTrue(manager.state.value.verifiedChannels.isEmpty())
     }
 
+    /** Verifies RLD toggles update the tracked state for a connected synthetic board. */
     @Test
-    fun testEnableDisableRLDUpdatesState() = runBlocking {
+    fun `enable and disable rld update state`() = runBlocking {
+        manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
+
+        manager.enableRLD(0)
+        assertTrue(0 in manager.state.value.rldEnabled, "Expected RLD for channel 0 to be enabled")
+
+        manager.disableRLD(0)
+        assertTrue(0 !in manager.state.value.rldEnabled, "Expected RLD for channel 0 to be disabled")
+    }
+
+    /** Verifies repeated RLD enable calls remain idempotent. */
+    @Test
+    fun `enable rld is idempotent`() = runBlocking {
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
         manager.enableRLD(0)
-        assertTrue(0 in manager.state.value.rldEnabled, "RLD for channel 0 should be enabled")
+        manager.enableRLD(0)
+
+        assertEquals(listOf(0), manager.state.value.rldEnabled)
+
         manager.disableRLD(0)
-        assertTrue(0 !in manager.state.value.rldEnabled, "RLD for channel 0 should be disabled")
+        assertTrue(manager.state.value.rldEnabled.isEmpty())
     }
 
+    /** Verifies invalid channel indexes do not mutate enabled-channel state. */
     @Test
-    fun testEnableDisableChannelInvalidIndex() = runBlocking {
+    fun `invalid channel indexes leave channel state unchanged`() = runBlocking {
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
         val before = manager.state.value.enabledChannels.size
+
         manager.enableChannel(100)
         manager.disableChannel(100)
-        // Should not throw, state unchanged for out-of-bounds
-        val after = manager.state.value.enabledChannels.size
-        assertEquals(before, after, "enabledChannels size should not change for invalid index")
+
+        assertEquals(before, manager.state.value.enabledChannels.size)
     }
 
+    /** Verifies invalid RLD indexes do not mutate the tracked RLD state. */
     @Test
-    fun testEnableDisableRLDInvalidIndex() = runBlocking {
+    fun `invalid rld indexes leave rld state unchanged`() = runBlocking {
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
         val before = manager.state.value.rldEnabled.size
+
         manager.enableRLD(100)
         manager.disableRLD(100)
-        // Should not throw, state unchanged for out-of-bounds
-        val after = manager.state.value.rldEnabled.size
-        assertEquals(before, after, "rldEnabled size should not change for invalid index")
+
+        assertEquals(before, manager.state.value.rldEnabled.size)
     }
 
+    /** Verifies real knight-board channel commands are forwarded through `config_board`. */
     @Test
-    fun testEnableDisableChannelKnightBoardCallsConfigBoard() = runBlocking {
+    fun `real knight board channel operations call config board`() = runBlocking {
         val mockShim = Mockito.mock(BoardShim::class.java)
-        val manager = BoardConnectionManager(
+        val localManager = BoardConnectionManager(
             stateStore = stateStore,
             boardShimFactory = { _, _ -> mockShim },
             samplingRateProvider = { 128 }
         )
-        manager.connect(boardId = BoardIds.NEUROPAWN_KNIGHT_BOARD, serialPort = "")
-        logger.i { "State after connect: ${manager.state.value}" }
-        manager.enableChannel(2)
-        logger.i { "State after enableChannel(2): ${manager.state.value}" }
+        localManager.connect(boardId = BoardIds.NEUROPAWN_KNIGHT_BOARD, serialPort = "")
+
+        localManager.enableChannel(2)
         verify(mockShim, times(1)).config_board("enable_channel 2")
-        assertTrue(2 in manager.state.value.enabledChannels, "Channel 2 should be enabled")
-        manager.disableChannel(2)
-        logger.i { "State after disableChannel(2): ${manager.state.value}" }
+        assertTrue(2 in localManager.state.value.enabledChannels)
+
+        localManager.disableChannel(2)
         verify(mockShim, times(1)).config_board("disable_channel 2")
-        assertTrue(2 !in manager.state.value.enabledChannels, "Channel 2 should be disabled")
+        assertTrue(2 !in localManager.state.value.enabledChannels)
     }
 
+    /** Verifies real knight-board RLD commands are forwarded through `config_board`. */
     @Test
-    fun testEnableDisableRLDKnightBoardCallsConfigBoard() = runBlocking {
+    fun `real knight board rld operations call config board`() = runBlocking {
         val mockShim = Mockito.mock(BoardShim::class.java)
-        val manager = BoardConnectionManager(
+        val localManager = BoardConnectionManager(
             stateStore = stateStore,
             boardShimFactory = { _, _ -> mockShim },
             samplingRateProvider = { 128 }
         )
-        manager.connect(boardId = BoardIds.NEUROPAWN_KNIGHT_BOARD, serialPort = "")
-        logger.i { "State after connect: ${manager.state.value}" }
-        manager.enableRLD(3)
-        logger.i { "State after enableRLD(3): ${manager.state.value}" }
+        localManager.connect(boardId = BoardIds.NEUROPAWN_KNIGHT_BOARD, serialPort = "")
+
+        localManager.enableRLD(3)
         verify(mockShim, times(1)).config_board("enable_rld 3")
-        assertTrue(3 in manager.state.value.rldEnabled, "RLD for channel 3 should be enabled")
-        manager.disableRLD(3)
-        logger.i { "State after disableRLD(3): ${manager.state.value}" }
+        assertTrue(3 in localManager.state.value.rldEnabled)
+
+        localManager.disableRLD(3)
         verify(mockShim, times(1)).config_board("disable_rld 3")
-        assertTrue(3 !in manager.state.value.rldEnabled, "RLD for channel 3 should be disabled")
+        assertTrue(3 !in localManager.state.value.rldEnabled)
     }
 
+    /** Verifies synthetic boards skip `config_board` for channel operations. */
     @Test
-    fun testEnableDisableChannelSyntheticBoardDoesNotCallConfigBoard() = runBlocking {
+    fun `synthetic board channel operations do not call config board`() = runBlocking {
         val mockShim = Mockito.mock(BoardShim::class.java)
-        val manager = BoardConnectionManager(
+        val localManager = BoardConnectionManager(
             stateStore = stateStore,
             boardShimFactory = { _, _ -> mockShim },
             samplingRateProvider = { 128 }
         )
-        manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
-        logger.i { "State after connect: ${manager.state.value}" }
-        manager.enableChannel(1)
-        logger.i { "State after enableChannel(1): ${manager.state.value}" }
+        localManager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
+
+        localManager.enableChannel(1)
         verify(mockShim, times(0)).config_board(any())
-        assertTrue(1 in manager.state.value.enabledChannels, "Channel 1 should be enabled")
-        manager.disableChannel(1)
-        logger.i { "State after disableChannel(1): ${manager.state.value}" }
+        assertTrue(1 in localManager.state.value.enabledChannels)
+
+        localManager.disableChannel(1)
         verify(mockShim, times(0)).config_board(any())
-        assertTrue(1 !in manager.state.value.enabledChannels, "Channel 1 should be disabled")
+        assertTrue(1 !in localManager.state.value.enabledChannels)
     }
 
+    /** Verifies synthetic boards skip `config_board` for RLD operations. */
     @Test
-    fun testEnableDisableRLDSyntheticBoardDoesNotCallConfigBoard() = runBlocking {
+    fun `synthetic board rld operations do not call config board`() = runBlocking {
         val mockShim = Mockito.mock(BoardShim::class.java)
-        val manager = BoardConnectionManager(
+        val localManager = BoardConnectionManager(
             stateStore = stateStore,
             boardShimFactory = { _, _ -> mockShim },
             samplingRateProvider = { 128 }
         )
-        manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
-        logger.i { "State after connect: ${manager.state.value}" }
-        manager.enableRLD(1)
-        logger.i { "State after enableRLD(1): ${manager.state.value}" }
+        localManager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
+
+        localManager.enableRLD(1)
         verify(mockShim, times(0)).config_board(any())
-        assertTrue(1 in manager.state.value.rldEnabled, "RLD for channel 1 should be enabled")
-        manager.disableRLD(1)
-        logger.i { "State after disableRLD(1): ${manager.state.value}" }
+        assertTrue(1 in localManager.state.value.rldEnabled)
+
+        localManager.disableRLD(1)
         verify(mockShim, times(0)).config_board(any())
-        assertTrue(1 !in manager.state.value.rldEnabled, "RLD for channel 1 should be disabled")
+        assertTrue(1 !in localManager.state.value.rldEnabled)
     }
 
+    /** Verifies the board shim starts out absent before any connection attempt. */
     @Test
-    fun testGetBoardShimReturnsNullInitially() {
-        val shim = manager.getBoardShim()
-        assertTrue(shim == null, "BoardShim should be null before connect")
+    fun `get board shim returns null initially`() {
+        assertNull(manager.getBoardShim())
     }
 
+
+    /** Verifies connect preserves seeded sampling, channel, and selection state when available. */
     @Test
-    fun testGetNumberOfChannelsSyntheticHint() {
-        val channels = manager.getNumberOfChannels(BoardIds.SYNTHETIC_BOARD, syntheticHint = true)
-        assertEquals(16, channels, "Synthetic board should have 16 channels")
+    fun `connect preserves previous sampling channels and selections`() {
+        val seededStateStore = StateStore(
+            HardwareState(
+                samplingRateHz = 500,
+                channels = 8,
+                enabledChannels = listOf(1, 3),
+                rldEnabled = listOf(2)
+            )
+        )
+        val seededManager = BoardConnectionManager(
+            stateStore = seededStateStore,
+            boardShimFactory = { _, _ -> Mockito.mock(BoardShim::class.java) },
+            samplingRateProvider = { throw RuntimeException("sampling unavailable") }
+        )
+
+        assertTrue(seededManager.connect(BoardIds.NEUROPAWN_KNIGHT_BOARD, serialPort = ""))
+        assertEquals(500, seededManager.state.value.samplingRateHz)
+        assertEquals(8, seededManager.state.value.channels)
+        assertEquals(listOf(1, 3), seededManager.state.value.enabledChannels)
+        assertEquals(listOf(2), seededManager.state.value.rldEnabled)
+        assertEquals(emptyList(), seededManager.state.value.verifiedChannels)
     }
 
+    /** Verifies connect falls back to the default sampling rate when discovery fails and no previous rate exists. */
     @Test
-    fun testGetNumberOfChannelsErrorHandling() {
-        val invalidBoardId = BoardIds.NO_BOARD
-        try {
-            manager.getNumberOfChannels(invalidBoardId)
-        } catch (e: Exception) {
-            assertTrue(e is Exception, "Should throw exception for invalid boardId")
-        }
+    fun `connect falls back to the default sampling rate when discovery fails`() {
+        val fallbackManager = BoardConnectionManager(
+            stateStore = StateStore(HardwareState()),
+            boardShimFactory = { _, _ -> Mockito.mock(BoardShim::class.java) },
+            samplingRateProvider = { throw RuntimeException("sampling unavailable") }
+        )
+
+        assertTrue(fallbackManager.connect(BoardIds.NEUROPAWN_KNIGHT_BOARD, serialPort = ""))
+        assertEquals(250, fallbackManager.state.value.samplingRateHz)
     }
 }

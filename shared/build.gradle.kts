@@ -1,31 +1,53 @@
 plugins {
-    kotlin("multiplatform")
+    alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.composeMultiplatform)
+    alias(libs.plugins.composeCompiler)
+    id("com.android.kotlin.multiplatform.library")
     id("org.jetbrains.kotlinx.kover")
 }
 
 kotlin {
     jvm()
+    android {
+        namespace = "io.github.lukewilk.shared"
+        compileSdk = 36
+        minSdk = 26
+    }
+    listOf(
+        iosArm64(),
+        iosSimulatorArm64()
+    )
     sourceSets {
-        val commonMain by getting {
+        named("commonMain") {
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+                implementation(libs.compose.runtime)
+                implementation(libs.compose.foundation)
+                implementation(libs.compose.material3)
+                implementation(libs.compose.ui)
+                implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.kermit)
             }
         }
-        val commonTest by getting {
+        named("commonTest") {
             dependencies {
                 implementation(kotlin("test"))
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4")
+                implementation(libs.kotlinx.coroutines.test)
+            }
+        }
+        named("jvmTest") {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(compose.desktop.currentOs)
+                implementation(compose.desktop.uiTestJUnit4)
             }
         }
     }
 }
 
-koverReport {
-    filters {
-        excludes {
-            classes (
-                // Add any generated or entry-point classes if needed
-            )
-        }
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        freeCompilerArgs.add("-Xexpect-actual-classes")
     }
 }

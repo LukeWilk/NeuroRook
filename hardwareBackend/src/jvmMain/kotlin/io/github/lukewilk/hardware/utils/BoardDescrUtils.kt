@@ -2,7 +2,7 @@ package io.github.lukewilk.hardware.utils
 
 import brainflow.BoardIds
 import brainflow.BoardShim
-import io.github.lukewilk.hardware.LoggerProvider
+import io.github.lukewilk.shared.logging.LoggerProvider
 
 /**
  * Utilities for working with BrainFlow board descriptions.

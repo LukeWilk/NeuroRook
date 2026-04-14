@@ -13,6 +13,7 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+        maven { url = uri("https://maven.pkg.jetbrains.space/public/p/compose/dev") }
     }
 }
 
@@ -34,12 +35,21 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven("https://maven.pkg.jetbrains.space/public/p/compose/dev") {
+            content {
+                includeGroup("org.jetbrains")
+                includeGroupByRegex("org\\.jetbrains\\..+")
+            }
+        }
         if (GHUSER != null && GHTOKEN != null) {
             maven {
                 url = uri("https://maven.pkg.github.com/brainflow-dev/brainflow")
                 credentials {
                     username = GHUSER
                     password = GHTOKEN
+                }
+                content {
+                    includeGroup("org.brainflow")
                 }
             }
         }
@@ -50,7 +60,18 @@ plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 
-include(":composeApp")
-include(":androidApp")
-include(":hardwareBackend")
-include(":hardwareBackendRunner")
+fun includeIfPresent(path: String) {
+    val projectDir = file(path.removePrefix(":"))
+    if (projectDir.isDirectory) {
+        include(path)
+    }
+}
+
+val hasComposeApp = file("composeApp").isDirectory
+
+if (hasComposeApp) {
+    include(":composeApp")
+    includeIfPresent(":androidApp")
+}
+includeIfPresent(":hardwareBackend")
+includeIfPresent(":hardwareBackendRunner")

@@ -46,6 +46,33 @@ class MainTest {
     }
 
     @Test
+    fun testApplyConfiguredNotchFiltersWithNoFiltersReturnsOriginalSignal() {
+        val signal = doubleArrayOf(1.0, -2.0, 3.0, -4.0)
+
+        val filtered = applyConfiguredNotchFilters(signal, emptyList(), samplingRate = 250.0)
+
+        assertTrue(filtered.contentEquals(signal), "Signal should pass through unchanged when no notch filters are configured")
+    }
+
+    @Test
+    fun testApplyConfiguredNotchFiltersCoercesBandwidthAndOrder() {
+        val signal = DoubleArray(256) { index -> kotlin.math.sin(index / 8.0) }
+        val degenerateNotch = BandstopConfig(
+            startFreq = 50.0,
+            stopFreq = 50.0,
+            order = 0,
+            samplingRate = 256,
+            filterType = 0,
+            ripple = 0.1
+        )
+
+        val filtered = applyConfiguredNotchFilters(signal, listOf(degenerateNotch), samplingRate = 256.0)
+
+        assertTrue(filtered.size == signal.size, "Filtered signal should preserve length")
+        assertTrue(filtered.all { it.isFinite() }, "Filtered samples should remain finite when bandwidth/order are coerced")
+    }
+
+    @Test
     fun testMainPipelineInvokesCallbacks() = runBlocking {
         val stateStore = StateStore(HardwareState(windowSize = 32, overlap = 16))
         val manager = BoardConnectionManager(stateStore)

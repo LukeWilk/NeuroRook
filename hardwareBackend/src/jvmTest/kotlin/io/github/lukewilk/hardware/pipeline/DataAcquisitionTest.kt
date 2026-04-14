@@ -1,328 +1,319 @@
 package io.github.lukewilk.hardware.pipeline
 
 import brainflow.BoardIds
-import brainflow.BoardShim
 import brainflow.BrainFlowInputParams
+import brainflow.BoardShim
 import io.github.lukewilk.hardware.BoardConnectionManager
-import io.github.lukewilk.hardware.LoggerProvider
 import io.github.lukewilk.hardware.RawFrame
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.withTimeout
-import kotlin.test.AfterTest
-import kotlin.test.Test
-import kotlin.test.assertTrue
-import kotlin.test.assertEquals
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
-import kotlinx.coroutines.launch
+import io.github.lukewilk.shared.WaveSpec
+import io.github.lukewilk.shared.WaveType
 import kotlinx.coroutines.delay
-import kotlin.collections.iterator
-import kotlin.math.abs
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
-class DataAcquisitionTest {
-    private val logger = LoggerProvider.getLogger("DataAcquisitionTest")
+/**
+ * Connection-state and synthetic-streaming tests for `DataAcquisition`.
+ */
+class DataAcquisitionTest : DataAcquisitionTestSupport() {
 
-    val stateStore = StateStore(HardwareState())
-    val manager = BoardConnectionManager(stateStore = stateStore)
-    val acquisition = DataAcquisition(manager)
-
-    @AfterTest
-    fun cleanup() {
-        runBlocking {
-            manager.close()
-            delay(200) // Give BrainFlow time to release resources
-        }
-    }
-
+    /** Verifies acquisition emits nothing when the board is disconnected before collection starts. */
     @Test
-    fun testStreamRawFramesReturnsEmptyFlow() = runBlocking {
+    fun `stream raw frames returns an empty flow when disconnected`() = runBlocking {
         manager.close()
+
         val items = acquisition.streamRawFrames().take(1).toList()
+
         assertTrue(items.isEmpty(), "Flow should emit no items when not connected")
     }
 
+    /** Verifies a connected non-synthetic acquisition exits quietly when no BoardShim is available. */
     @Test
-    fun testSyntheticBoardStreamRawFramesEmitsFrames() = runBlocking {
-        // Ensure at least one channel is enabled before connecting
-        stateStore.update { st ->
-            st.copy(
-                channels = 1,
-                samplingRateHz = 120,
-                enabledChannels = listOf(0)
-            )
-        }
+    fun `stream raw frames returns empty when connected without a shim`() = runBlocking {
+        val localStateStore = StateStore(HardwareState(connected = true, synthetic = false, windowSize = 4, overlap = 2, channels = 1))
+        val localManager = BoardConnectionManager(localStateStore)
+        val localAcquisition = DataAcquisition(
+            localManager,
+            boardShimProvider = { null },
+            stateProvider = { localStateStore.get() }
+        )
+
+        val items = localAcquisition.streamRawFrames().take(1).toList()
+
+        assertTrue(items.isEmpty(), "Connected non-synthetic acquisition should exit quietly when no BoardShim is available")
+    }
+
+    /** Verifies synthetic streaming emits windowed frames once the synthetic board is connected and started. */
+    @Test
+    fun `synthetic board stream raw frames emits frames`() = runBlocking {
+        // Seed one enabled channel so the synthetic loop has deterministic output to emit.
+        stateStore.update { st -> st.copy(channels = 1, samplingRateHz = 120, enabledChannels = listOf(0)) }
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
         manager.startStream()
+
         logger.i { "Board connected: ${manager.state.value}" }
         val frames = mutableListOf<RawFrame>()
-        withTimeout(10000) { // Increased timeout
+        withTimeout(10_000) {
             acquisition.streamRawFrames().take(3).toList(frames)
         }
         manager.stopStream()
-        manager.close()
+
         logger.i { "Frames collected: ${frames.size}" }
         frames.forEachIndexed { idx, frame ->
             logger.i { "Frame $idx data: ${frame.data.contentToString()}" }
         }
+
         assertEquals(3, frames.size, "Should emit 3 frames before close")
-        frames.forEach { frame ->
-            assertTrue(frame.data.isNotEmpty(), "Frame data should not be empty")
-        }
+        frames.forEach { frame -> assertTrue(frame.data.isNotEmpty(), "Frame data should not be empty") }
     }
 
+    /** Verifies synthetic acquisition defaults to all available channels when none are explicitly enabled. */
     @Test
-    fun testIsConnectedAndCloseState() = runBlocking {
+    fun `synthetic board with empty enabled channels emits all channels`() = runBlocking {
+        val localStateStore = StateStore(
+            HardwareState(
+                connected = true,
+                synthetic = true,
+                samplingRateHz = 120,
+                channels = 2,
+                enabledChannels = emptyList(),
+                windowSize = 4,
+                overlap = 2,
+                waveSpecs = listOf(WaveSpec(enabled = true, type = WaveType.SINE, amplitude = 1.0, frequencyHz = 8.0))
+            )
+        )
+        val localManager = BoardConnectionManager(localStateStore)
+        val localAcquisition = DataAcquisition(localManager)
+
+        localManager.startStream()
+        val frames = withTimeout(5_000) { localAcquisition.streamRawFrames().take(4).toList() }
+        localManager.stopStream()
+
+        assertTrue(frames.map { it.channel }.toSet().containsAll(setOf(0, 1)))
+    }
+
+    /** Verifies synthetic acquisition ignores enabled-channel indexes that fall outside the generated data set. */
+    @Test
+    fun `synthetic board skips invalid enabled channels`() = runBlocking {
+        val localStateStore = StateStore(
+            HardwareState(
+                connected = true,
+                synthetic = true,
+                samplingRateHz = 120,
+                channels = 2,
+                enabledChannels = listOf(-1, 1, 3),
+                windowSize = 4,
+                overlap = 2,
+                waveSpecs = listOf(WaveSpec(enabled = true, type = WaveType.SINE, amplitude = 1.0, frequencyHz = 8.0))
+            )
+        )
+        val localManager = BoardConnectionManager(localStateStore)
+        val localAcquisition = DataAcquisition(localManager)
+
+        localManager.startStream()
+        val frames = withTimeout(5_000) { localAcquisition.streamRawFrames().take(2).toList() }
+        localManager.stopStream()
+
+        assertTrue(frames.isNotEmpty())
+        assertTrue(frames.all { it.channel == 1 }, "Synthetic acquisition should skip invalid enabled channel indexes")
+    }
+
+    /** Verifies acquisition reports connection state consistently across close boundaries. */
+    @Test
+    fun `is connected and close reflect manager state`() = runBlocking {
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
-        val acquisition = DataAcquisition(manager)
+
         assertTrue(acquisition.isConnected(), "Should be connected after connect")
+
         acquisition.close()
+
         assertTrue(!acquisition.isConnected(), "Should not be connected after close")
-        manager.close()
     }
 
+    /** Verifies a throwing injected shim produces no frames and exits quietly. */
     @Test
-    fun testStreamRawFramesHandlesBoardShimError() = runBlocking {
+    fun `stream raw frames handles board shim errors`() = runBlocking {
         manager.connect(boardId = BoardIds.SYNTHETIC_BOARD, serialPort = "")
         manager.startStream()
-        val errorState = HardwareState(
-            connected = true,
-            synthetic = true,
-            samplingRateHz = 120,
-            enabledChannels = listOf(0) // Enable channel 0 by index
-        )
+        val errorState = HardwareState(connected = true, synthetic = true, samplingRateHz = 120, enabledChannels = listOf(0))
         val errorBoardShim = object : BoardShim(BoardIds.SYNTHETIC_BOARD, BrainFlowInputParams()) {
             override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
                 throw RuntimeException("Simulated error")
             }
         }
-        val acquisition = DataAcquisition(
+        val localAcquisition = DataAcquisition(
             manager,
             boardShimProvider = { errorBoardShim },
             stateProvider = { errorState }
         )
-        val frames = acquisition.streamRawFrames().take(1).toList()
+
+        val frames = localAcquisition.streamRawFrames().take(1).toList()
         manager.stopStream()
-        manager.close()
+
         assertTrue(frames.isEmpty(), "Should emit no frames on error")
     }
 
+    /** Verifies synthetic streaming loop errors are swallowed after at most one emitted frame. */
     @Test
-    fun testStreamRawFrames_nativeShimPath() = runBlocking {
-        // Simulate a BoardShim that returns a fixed block of data
-        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
-            override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
-                // 2 channels, each with num_datapoints samples
-                return arrayOf(
-                    DoubleArray(num_datapoints) { it.toDouble() },
-                    DoubleArray(num_datapoints) { (it + 100).toDouble() }
-                )
-            }
-        }
-        val stateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 2, enabledChannels = listOf(0, 1)))
-        val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(
-            manager,
-            boardShimProvider = { fakeShim },
-            stateProvider = { stateStore.get() })
-        manager.startStream()
-        val frames = mutableListOf<RawFrame>()
-        acq.streamRawFrames().take(3).toList(frames)
-        manager.stopStream()
-        // Should emit frames for both channels
-        assertTrue(frames.isNotEmpty())
-        assertTrue(frames.all { it.data.size == 4 })
-        // Group frames by channel
-        val framesByChannel = frames.groupBy { it.channel }
-        val overlapSize = 2
-        for ((ch, chFrames) in framesByChannel) {
-            if (chFrames.size >= 2) {
-                for (i in 0 until chFrames.size - 1) {
-                    val overlap = chFrames[i].data.takeLast(overlapSize)
-                    val nextStart = chFrames[i + 1].data.take(overlapSize)
-                    println("DEBUG: channel $ch overlap = $overlap, nextStart = $nextStart")
-                    overlap.zip(nextStart).forEach { (a, b) ->
-                        assertTrue(abs(a - b) < 1e-9, "Channel $ch overlap values should match: $a vs $b")
-                    }
-                }
-            }
-        }
-    }
-
-    @Test
-    fun testStreamRawFrames_channelCountChange() = runBlocking {
-        // Simulate a BoardShim that changes channel count
-        var callCount = 0
-        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
-            override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
-                callCount++
-                return if (callCount == 1) {
-                    arrayOf(DoubleArray(num_datapoints) { 1.0 })
-                } else {
-                    arrayOf(DoubleArray(num_datapoints) { 2.0 }, DoubleArray(num_datapoints) { 3.0 })
-                }
-            }
-        }
-        val stateStore = StateStore(HardwareState(connected = true, windowSize = 2, overlap = 1, channels = 2, enabledChannels = listOf(0, 1)))
-        val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(
-            manager,
-            boardShimProvider = { fakeShim },
-            stateProvider = { stateStore.get() })
-        manager.startStream()
-        val frames = mutableListOf<RawFrame>()
-        acq.streamRawFrames().take(4).toList(frames)
-        manager.stopStream()
-        // Should handle channel count change without error
-        assertTrue(frames.isNotEmpty())
-    }
-
-    @Test
-    fun testSyntheticStreamingErrorPath() = runBlocking {
-        // Use a stateProvider that throws after first call to simulate error in synthetic branch
-        val stateStore = StateStore(HardwareState(connected = true, synthetic = true, channels = 1, enabledChannels = listOf(0), windowSize = 4, samplingRateHz = 100))
-        val manager = BoardConnectionManager(stateStore)
+    fun `synthetic streaming error path exits quietly`() = runBlocking {
+        val localStateStore = StateStore(HardwareState(connected = true, synthetic = true, channels = 1, enabledChannels = listOf(0), windowSize = 4, samplingRateHz = 100))
+        val localManager = BoardConnectionManager(localStateStore)
         var callCount = 0
         val throwingStateProvider = {
             callCount++
             if (callCount > 1) throw RuntimeException("Simulated synthetic streaming error")
-            stateStore.get()
+            localStateStore.get()
         }
-        val acq = DataAcquisition(manager, stateProvider = throwingStateProvider)
-        manager.startStream()
+        val localAcquisition = DataAcquisition(localManager, stateProvider = throwingStateProvider)
+
+        localManager.startStream()
         val frames = mutableListOf<RawFrame>()
-        // Should not throw, should just log error and exit
-        acq.streamRawFrames().take(1).toList(frames)
-        manager.stopStream()
-        // Should emit at most one frame before error
+        localAcquisition.streamRawFrames().take(1).toList(frames)
+        localManager.stopStream()
+
         assertTrue(frames.size <= 1, "Should emit at most one frame before synthetic streaming error")
     }
 
+    /** Verifies synthetic acquisition skips emitting a ready window once streaming stops during generation. */
     @Test
-    fun testNativeShimEmptyDataBranch() = runBlocking {
-        // Simulate a BoardShim that returns empty data arrays
-        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
-            override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
-                return arrayOf(DoubleArray(0)) // data[0].isEmpty() == true
-            }
-        }
-        val stateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 1, enabledChannels = listOf(0)))
-        val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(
-            manager,
-            boardShimProvider = { fakeShim },
-            stateProvider = { stateStore.get() })
-        manager.startStream()
-        val frames = mutableListOf<RawFrame>()
-        val job = launch {
-            acq.streamRawFrames().collect { frames.add(it) }
-        }
-        delay(100)
-        job.cancel()
-        job.join()
-        manager.stopStream()
-        assertTrue(frames.isEmpty(), "Should emit no frames when BoardShim returns empty data")
-    }
-
-    @Test
-    fun testNativeShimEnabledChannelsDefaultBranch() = runBlocking {
-        // Simulate a BoardShim that returns data for 3 channels
-        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
-            override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
-                return arrayOf(
-                    DoubleArray(num_datapoints) { 1.0 },
-                    DoubleArray(num_datapoints) { 2.0 },
-                    DoubleArray(num_datapoints) { 3.0 }
-                )
-            }
-        }
-        // Set enabledChannels to empty to trigger the default branch
-        val stateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 3, enabledChannels = emptyList()))
-        val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(
-            manager,
-            boardShimProvider = { fakeShim },
-            stateProvider = { stateStore.get() })
-        manager.startStream()
-        val frames = mutableListOf<RawFrame>()
-        acq.streamRawFrames().take(3).toList(frames)
-        manager.stopStream()
-        // Should emit frames for all channels (0, 1, 2)
-        val channelsEmitted = frames.map { it.channel }.toSet()
-        assertTrue(channelsEmitted.containsAll(setOf(0, 1, 2)), "Should emit frames for all channels when enabledChannels is empty")
-    }
-
-    @Test
-    fun testNativeShimStreamingLoopErrorBranch() = runBlocking {
-        // Simulate a BoardShim that returns valid data
-        val fakeShim = object : BoardShim(0, BrainFlowInputParams()) {
-            override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
-                return arrayOf(DoubleArray(num_datapoints) { 1.0 })
-            }
-        }
-        // State provider that throws an exception after first call
-        var callCount = 0
-        val stateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 1, enabledChannels = listOf(0)))
-        val throwingStateProvider = {
-            callCount++
-            if (callCount > 1) throw RuntimeException("Simulated streaming loop error")
-            stateStore.get()
-        }
-        val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(
-            manager,
-            boardShimProvider = { fakeShim },
-            stateProvider = throwingStateProvider
+    fun `synthetic streaming stops before buffered window emission`() = runBlocking {
+        val localStateStore = StateStore(
+            HardwareState(
+                connected = true,
+                synthetic = true,
+                channels = 1,
+                enabledChannels = listOf(0),
+                windowSize = 4,
+                overlap = 2,
+                samplingRateHz = 128
+            )
         )
-        manager.startStream()
-        val frames = mutableListOf<RawFrame>()
-        // Should not throw, should just log error and exit
-        acq.streamRawFrames().take(1).toList(frames)
-        manager.stopStream()
-        // Should emit at most one frame before error
-        assertTrue(frames.size <= 1, "Should emit at most one frame before streaming loop error")
+        val localManager = object : BoardConnectionManager(localStateStore) {
+            override fun generateSyntheticData(samples: Int): Array<DoubleArray> {
+                stopStream()
+                return arrayOf(DoubleArray(samples) { 1.0 })
+            }
+        }
+        var timeIndex = 0
+        val scriptedTimes = listOf(0L, 1_000L, 1_001L)
+        val localAcquisition = DataAcquisition(
+            localManager,
+            stateProvider = { localStateStore.get() },
+            timeProvider = { scriptedTimes.getOrElse(timeIndex++) { scriptedTimes.last() } }
+        )
+
+        localManager.startStream()
+        val frames = withTimeout(2_000) { localAcquisition.streamRawFrames().take(1).toList() }
+
+        assertTrue(frames.isEmpty(), "Synthetic acquisition should skip buffered window emission once streaming has already been stopped")
     }
 
+    /** Verifies synthetic acquisition caps large catch-up bursts to at most two seconds of data. */
     @Test
-    fun testStreamRawFrames_cancellationDuringFetch() = runBlocking {
-        // Fake shim that blocks in get_board_data so the CompletableFuture remains pending
-        val blockingShim = object : BoardShim(0, BrainFlowInputParams()) {
-            override fun get_board_data(num_datapoints: Int): Array<DoubleArray> {
-                try {
-                    Thread.sleep(1000) // sleep long enough to allow cancellation
-                } catch (_: InterruptedException) {}
-                return arrayOf(DoubleArray(num_datapoints) { 0.0 })
+    fun `synthetic streaming caps large catch up bursts`() = runBlocking {
+        val localStateStore = StateStore(
+            HardwareState(
+                connected = true,
+                synthetic = true,
+                samplingRateHz = 100,
+                channels = 1,
+                enabledChannels = listOf(0),
+                windowSize = 4,
+                overlap = 2
+            )
+        )
+        var requestedSamples = -1
+        val localManager = object : BoardConnectionManager(localStateStore) {
+            override fun generateSyntheticData(samples: Int): Array<DoubleArray> {
+                requestedSamples = samples
+                return Array(1) { DoubleArray(samples) { 1.0 } }
             }
         }
+        var timeIndex = 0
+        val scriptedTimes = listOf(0L, 10_000L, 10_001L, 10_002L)
+        val localAcquisition = DataAcquisition(
+            localManager,
+            stateProvider = { localStateStore.get() },
+            timeProvider = { scriptedTimes.getOrElse(timeIndex++) { scriptedTimes.last() } }
+        )
 
-        val stateStore = StateStore(HardwareState(connected = true, windowSize = 8, overlap = 4, channels = 1, enabledChannels = listOf(0)))
-        val manager = BoardConnectionManager(stateStore)
-        val acq = DataAcquisition(
-            manager,
-            boardShimProvider = { blockingShim },
-            stateProvider = { stateStore.get() })
-        manager.startStream()
+        localManager.startStream()
+        val frames = withTimeout(2_000) { localAcquisition.streamRawFrames().take(1).toList() }
+        localManager.stopStream()
 
-        // Launch a collector job and cancel it shortly afterward to trigger the cancellation handler
+        assertEquals(200, requestedSamples, "Synthetic acquisition should cap bursts to samplingRate * 2 samples")
+        assertEquals(1, frames.size)
+        assertEquals(4, frames.single().data.size)
+    }
+
+    /** Verifies synthetic acquisition skips frames and exits cleanly when generation fails every iteration. */
+    @Test
+    fun `synthetic streaming skips frames when generation fails`() = runBlocking {
+        val localStateStore = StateStore(
+            HardwareState(
+                connected = true,
+                synthetic = true,
+                samplingRateHz = 128,
+                channels = 1,
+                enabledChannels = listOf(0),
+                windowSize = 4,
+                overlap = 2
+            )
+        )
+        val localManager = object : BoardConnectionManager(localStateStore) {
+            override fun generateSyntheticData(samples: Int): Array<DoubleArray> {
+                throw RuntimeException("synthetic generation failed")
+            }
+        }
+        val localAcquisition = DataAcquisition(
+            localManager,
+            stateProvider = { localStateStore.get() },
+            timeProvider = { System.currentTimeMillis() + 1_000L }
+        )
+
+        localManager.startStream()
         val frames = mutableListOf<RawFrame>()
-        val job = launch {
-            try {
-                acq.streamRawFrames().collect { frames.add(it) }
-            } catch (_: Exception) {
-                // collector may be cancelled; swallow exceptions for test
-            }
+        val collector = launch {
+            localAcquisition.streamRawFrames().collect { frames.add(it) }
         }
-        // Give it a moment to start and hit the blocking get_board_data
-        delay(100)
-        // Cancel the collector which should invoke cont.invokeOnCancellation and cancel the CompletableFuture
-        job.cancel()
-        job.join()
 
-        manager.stopStream()
-        manager.close()
+        delay(75)
+        localManager.stopStream()
+        collector.join()
 
-        // We don't expect frames (fetch was cancelled), but the important part is no exception bubbled
-        assertTrue(frames.isEmpty(), "No frames should be emitted when fetch is cancelled")
+        assertTrue(frames.isEmpty(), "No frames should be emitted when synthetic data generation fails for every iteration")
+    }
+
+    /** Verifies the outer streaming-loop helper returns true only while streaming, connected, and active. */
+    @Test
+    fun `should continue streaming loop helper covers all exit conditions`() {
+        assertTrue(shouldContinueStreamingLoop(streaming = true, connected = true, isActive = true))
+        assertTrue(!shouldContinueStreamingLoop(streaming = false, connected = true, isActive = true))
+        assertTrue(!shouldContinueStreamingLoop(streaming = true, connected = false, isActive = true))
+        assertTrue(!shouldContinueStreamingLoop(streaming = true, connected = true, isActive = false))
+    }
+
+    /** Verifies the per-window helper requires both an active stream and an active coroutine context. */
+    @Test
+    fun `should emit current window helper covers streaming and context checks`() {
+        assertTrue(shouldEmitCurrentWindow(streaming = true, isActive = true))
+        assertTrue(!shouldEmitCurrentWindow(streaming = false, isActive = true))
+        assertTrue(!shouldEmitCurrentWindow(streaming = true, isActive = false))
+    }
+
+    /** Verifies the drain-loop helper blocks undersized, stopped, and inactive buffer states. */
+    @Test
+    fun `should drain channel buffer helper covers all branches`() {
+        assertTrue(!shouldDrainChannelBuffer(bufferedSamples = 3, windowSize = 4, streaming = true, isActive = true))
+        assertTrue(shouldDrainChannelBuffer(bufferedSamples = 4, windowSize = 4, streaming = true, isActive = true))
+        assertTrue(!shouldDrainChannelBuffer(bufferedSamples = 4, windowSize = 4, streaming = false, isActive = true))
+        assertTrue(!shouldDrainChannelBuffer(bufferedSamples = 4, windowSize = 4, streaming = true, isActive = false))
     }
 }

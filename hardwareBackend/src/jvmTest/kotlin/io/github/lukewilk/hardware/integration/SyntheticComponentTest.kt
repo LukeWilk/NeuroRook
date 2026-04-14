@@ -1,13 +1,13 @@
 package io.github.lukewilk.hardware.integration
 
 import io.github.lukewilk.hardware.BoardConnectionManager
-import io.github.lukewilk.hardware.LoggerProvider
 import io.github.lukewilk.hardware.synthetic.SyntheticDataGenerator
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
 import io.github.lukewilk.shared.SyntheticMode
 import io.github.lukewilk.shared.WaveSpec
 import io.github.lukewilk.shared.WaveType
+import io.github.lukewilk.shared.logging.LoggerProvider
 import kotlinx.coroutines.runBlocking
 import kotlin.math.abs
 import kotlin.math.cos
@@ -17,48 +17,136 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class SyntheticComponentTest {
+/**
+ * End-to-end synthetic-wave sanity checks that exercise `BoardConnectionManager` plus the in-process
+ * synthetic generator as one integrated component.
+ */
+internal class SyntheticComponentTest {
     private val logger = LoggerProvider.getLogger("SyntheticComponentTest")
+    private val stateStore = StateStore(HardwareState())
 
-    val stateStore = StateStore(HardwareState())
-
-    // This test verifies that the synthetic data generator produces a 1 Hz sine wave correctly
-    // sampled at 100 Hz over a 1-second interval.
-    @Test
-    fun testSyntheticBoardGeneratesOneSecondOfData() = runBlocking {
-        val manager = BoardConnectionManager(stateStore)
-        try {
-            // Configure manager to use the in-process wave generator
-            val samplingRate =
-                100 // Hz, 1 second -> 100 samples (we'll request +1 to include both endpoints)
-            stateStore.update { st ->
-                st.copy(
-                    connected = true,
-                    synthetic = true,
-                    samplingRateHz = samplingRate,
-                    channels = 1,
-                    enabledChannels = listOf(0), // Enable only channel 0 by index
-                    syntheticMode = SyntheticMode.WAVE_GENERATOR,
-                    waveSpecs = listOf(
-                        WaveSpec(
-                            enabled = true,
-                            type = WaveType.SINE,
-                            amplitude = 1.0,
-                            frequencyHz = 1.0,
-                            phaseShiftRad = 0.0
-                        ),
-                        WaveSpec(),
-                        WaveSpec(),
-                        WaveSpec(),
-                        WaveSpec()
-                    )
+    /** Configures the manager to generate a single enabled 1 Hz sine wave through the wave-generator mode. */
+    private fun configuredSyntheticManager(): BoardConnectionManager = BoardConnectionManager(stateStore).also {
+        stateStore.update { state ->
+            state.copy(
+                connected = true,
+                synthetic = true,
+                samplingRateHz = 100,
+                channels = 1,
+                enabledChannels = listOf(0),
+                syntheticMode = SyntheticMode.WAVE_GENERATOR,
+                waveSpecs = listOf(
+                    WaveSpec(
+                        enabled = true,
+                        type = WaveType.SINE,
+                        amplitude = 1.0,
+                        frequencyHz = 1.0,
+                        phaseShiftRad = 0.0
+                    ),
+                    WaveSpec(),
+                    WaveSpec(),
+                    WaveSpec(),
+                    WaveSpec()
                 )
-            }
+            )
+        }
+    }
 
-            // Generate one second of data (+1 sample to include both t=0 and t=1)
-            val seconds = 1
-            val samples = samplingRate * seconds + 1 // 101 samples: t=0..1 inclusive
-            // Reset phase accumulators to ensure deterministic phase (start at 0)
+    /** Counts local maxima and minima so the test can verify a single clean sine cycle was generated. */
+    private fun countLocalExtrema(samples: DoubleArray): Pair<Int, Int> {
+        var maxima = 0
+        var minima = 0
+        for (index in 1 until samples.size - 1) {
+            val previous = samples[index - 1]
+            val current = samples[index]
+            val next = samples[index + 1]
+            if (current > previous && current > next) maxima++
+            if (current < previous && current < next) minima++
+        }
+        return maxima to minima
+    }
+
+    /** Finds the first local maximum index in the generated signal. */
+    private fun firstLocalMaximumIndex(samples: DoubleArray): Int =
+        samples.indices.first { index ->
+            index in 1 until samples.size - 1 &&
+                samples[index] > samples[index - 1] &&
+                samples[index] > samples[index + 1]
+        }
+
+    /** Finds the first local minimum index in the generated signal. */
+    private fun firstLocalMinimumIndex(samples: DoubleArray): Int =
+        samples.indices.first { index ->
+            index in 1 until samples.size - 1 &&
+                samples[index] < samples[index - 1] &&
+                samples[index] < samples[index + 1]
+        }
+
+    /** Computes one DFT bin magnitude-squared so the test can confirm the 1 Hz component dominates. */
+    private fun dftBinMagnitude(samples: DoubleArray, bin: Int): Double {
+        var real = 0.0
+        var imaginary = 0.0
+        for (sampleIndex in samples.indices) {
+            val angle = 2.0 * Math.PI * bin * sampleIndex / samples.size
+            real += samples[sampleIndex] * cos(angle)
+            imaginary -= samples[sampleIndex] * sin(angle)
+        }
+        return real * real + imaginary * imaginary
+    }
+
+    /** Detects sample indexes where the waveform changes sign. */
+    private fun zeroCrossingIndices(samples: DoubleArray): List<Int> {
+        val zeroIndices = mutableListOf<Int>()
+        for (index in 1 until samples.size) {
+            val previous = samples[index - 1]
+            val current = samples[index]
+            if ((previous <= 0.0 && current > 0.0) || (previous >= 0.0 && current < 0.0)) {
+                zeroIndices += index
+            }
+        }
+        return zeroIndices
+    }
+
+    /** Asserts the signal is monotonic across the expected sections of a single sine cycle. */
+    private fun assertMonotonicSingleCycleShape(samples: DoubleArray, maxIndex: Int, minIndex: Int) {
+        for (index in 1..maxIndex) {
+            assertTrue(
+                samples[index] >= samples[index - 1] - 1e-9,
+                "Signal should be non-decreasing up to the first maximum (idx $index)"
+            )
+        }
+        for (index in maxIndex + 1..minIndex) {
+            assertTrue(
+                samples[index] <= samples[index - 1] + 1e-9,
+                "Signal should be non-increasing between max and min (idx $index)"
+            )
+        }
+        for (index in minIndex + 1 until samples.size) {
+            assertTrue(
+                samples[index] >= samples[index - 1] - 1e-9,
+                "Signal should be non-decreasing after the minimum (idx $index)"
+            )
+        }
+    }
+
+    /**
+     * Verifies the integrated synthetic board generates one clean one-second 1 Hz sine cycle sampled at 100 Hz.
+     *
+     * The assertions intentionally cover:
+     * - sample count and endpoint agreement,
+     * - one local maximum and one local minimum,
+     * - monotonic shape around the extrema,
+     * - dominant 1 Hz spectral energy,
+     * - approximately half-period zero-crossing spacing.
+     */
+    @Test
+    fun `synthetic board generates one second of 1 hz sine data`() = runBlocking {
+        val samplingRateHz = 100
+        val seconds = 1
+        val samples = samplingRateHz * seconds + 1
+        val manager = configuredSyntheticManager()
+
+        try {
             SyntheticDataGenerator.resetPhases()
             val block = manager.generateSyntheticData(samples)
             assertTrue(block.isNotEmpty(), "Generated block should not be empty")
@@ -66,110 +154,47 @@ class SyntheticComponentTest {
             assertEquals(
                 samples,
                 channelData.size,
-                "Should generate $samples samples for one second at $samplingRate Hz"
+                "Should generate $samples samples for one second at $samplingRateHz Hz"
             )
 
-            // Print samples on separate lines
             logger.i { "Generated ${channelData.size} samples (one per line):" }
-            channelData.forEachIndexed { i, v ->
-                logger.i { "$i: $v" }
+            channelData.forEachIndexed { index, value ->
+                logger.i { "$index: $value" }
             }
 
-            // Compare first and last samples - for 1Hz sine over exactly 1s they should be close
-            val first = channelData.first()
-            val last = channelData.last()
-            val diff = abs(first - last)
-            logger.i { "First sample=$first, last sample=$last, diff=$diff" }
-            // threshold: allow small error due to discrete sampling
-            assertTrue(diff < 0.12, "First and last sample should be close. diff=$diff")
+            val firstSample = channelData.first()
+            val lastSample = channelData.last()
+            val endpointDifference = abs(firstSample - lastSample)
+            logger.i { "First sample=$firstSample, last sample=$lastSample, diff=$endpointDifference" }
+            assertTrue(endpointDifference < 0.12, "First and last sample should be close. diff=$endpointDifference")
 
-            // Count local maxima and minima
-            var maxima = 0
-            var minima = 0
-            for (i in 1 until channelData.size - 1) {
-                val prev = channelData[i - 1]
-                val cur = channelData[i]
-                val next = channelData[i + 1]
-                if (cur > prev && cur > next) maxima++
-                if (cur < prev && cur < next) minima++
-            }
+            val (maxima, minima) = countLocalExtrema(channelData)
             logger.i { "Found maxima=$maxima, minima=$minima" }
             assertEquals(1, maxima, "Expected exactly 1 local maximum in one sine cycle")
             assertEquals(1, minima, "Expected exactly 1 local minimum in one sine cycle")
 
-            // Check monotonic segments around extrema: before max should be increasing, after max decreasing
-            // Find index of max and min
-            val maxIdx =
-                channelData.indices.first { i -> i in 1 until channelData.size - 1 && channelData[i] > channelData[i - 1] && channelData[i] > channelData[i + 1] }
-            val minIdx =
-                channelData.indices.first { i -> i in 1 until channelData.size - 1 && channelData[i] < channelData[i - 1] && channelData[i] < channelData[i + 1] }
-            logger.i { "Max at index $maxIdx, Min at index $minIdx" }
-
-            // Verify monotonic increase from start to maxIdx
-            for (i in 1..maxIdx) {
-                assertTrue(
-                    channelData[i] >= channelData[i - 1] - 1e-9,
-                    "Signal should be non-decreasing up to the first maximum (idx $i)"
-                )
-            }
-            // Verify monotonic decrease from maxIdx to minIdx
-            for (i in maxIdx + 1..minIdx) {
-                assertTrue(
-                    channelData[i] <= channelData[i - 1] + 1e-9,
-                    "Signal should be non-increasing between max and min (idx $i)"
-                )
-            }
-            // Verify monotonic increase from minIdx to end
-            for (i in minIdx + 1 until channelData.size) {
-                assertTrue(
-                    channelData[i] >= channelData[i - 1] - 1e-9,
-                    "Signal should be non-decreasing after the minimum (idx $i)"
-                )
-            }
-
-            // --- Additional checks requested: FFT (DFT) based dominant frequency check and zero-crossing spacing ---
-
-            // 1) DFT: compute bin for 1 Hz and assert it dominates energy
-            val n = channelData.size
-            fun dftBinMagnitude(bin: Int): Double {
-                var real = 0.0
-                var imag = 0.0
-                for (k in 0 until n) {
-                    val angle = 2.0 * Math.PI * bin * k / n
-                    real += channelData[k] * cos(angle)
-                    imag -= channelData[k] * sin(angle)
-                }
-                return real * real + imag * imag
-            }
+            val maxIndex = firstLocalMaximumIndex(channelData)
+            val minIndex = firstLocalMinimumIndex(channelData)
+            logger.i { "Max at index $maxIndex, Min at index $minIndex" }
+            assertMonotonicSingleCycleShape(channelData, maxIndex, minIndex)
 
             val totalPower = channelData.sumOf { it * it }
-            val targetBin = (1.0 * n / samplingRate).roundToInt() // bin corresponding to 1 Hz
-            val binMag = dftBinMagnitude(targetBin)
-            val ratio = if (totalPower <= 0.0) 0.0 else binMag / totalPower
-            logger.i { "DFT: targetBin=$targetBin, binMag=$binMag, totalPower=$totalPower, ratio=$ratio" }
-            // require that the 1 Hz bin holds most of the power (allow threshold 0.5 for non-power-of-two length)
-            assertTrue(ratio > 0.5, "Dominant frequency should be 1Hz; power ratio=$ratio")
-
-            // 2) Zero-crossing spacing: detect zero crossings and check spacing uniformity
-            val zeroIndices = mutableListOf<Int>()
-            for (i in 1 until channelData.size) {
-                val prev = channelData[i - 1]
-                val cur = channelData[i]
-                if ((prev <= 0.0 && cur > 0.0) || (prev >= 0.0 && cur < 0.0)) {
-                    zeroIndices.add(i)
-                }
+            val targetBin = (1.0 * channelData.size / samplingRateHz).roundToInt()
+            val targetBinMagnitude = dftBinMagnitude(channelData, targetBin)
+            val dominantPowerRatio = if (totalPower <= 0.0) 0.0 else targetBinMagnitude / totalPower
+            logger.i {
+                "DFT: targetBin=$targetBin, binMag=$targetBinMagnitude, totalPower=$totalPower, ratio=$dominantPowerRatio"
             }
+            assertTrue(dominantPowerRatio > 0.5, "Dominant frequency should be 1Hz; power ratio=$dominantPowerRatio")
+
+            val zeroIndices = zeroCrossingIndices(channelData)
             logger.i { "Zero crossing indices: $zeroIndices" }
-            // We expect approximately two zero crossings in 1s for sine at 1Hz (t=0 and t=0.5)
-            assertTrue(
-                zeroIndices.size >= 2,
-                "Expected at least two zero crossings, found ${zeroIndices.size}"
-            )
-            // check spacing between consecutive zero crossings ~ samples/2 (half period)
-            val spacings = zeroIndices.zipWithNext { a, b -> b - a }
-            val meanSpacing = spacings.average()
-            logger.i { "Zero-cross spacings: $spacings, mean=$meanSpacing" }
-            val expectedHalfPeriod = samplingRate / 2.0
+            assertTrue(zeroIndices.size >= 2, "Expected at least two zero crossings, found ${zeroIndices.size}")
+
+            val zeroCrossingSpacings = zeroIndices.zipWithNext { a, b -> b - a }
+            val meanSpacing = zeroCrossingSpacings.average()
+            val expectedHalfPeriod = samplingRateHz / 2.0
+            logger.i { "Zero-cross spacings: $zeroCrossingSpacings, mean=$meanSpacing" }
             assertTrue(
                 abs(meanSpacing - expectedHalfPeriod) < 3.0,
                 "Zero-cross spacing mean should be close to half period ($expectedHalfPeriod), got $meanSpacing"

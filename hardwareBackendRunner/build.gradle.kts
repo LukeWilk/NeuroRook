@@ -8,17 +8,16 @@ dependencies {
     implementation(project(":hardwareBackend"), {
         targetConfiguration = "jvmRuntimeElements"
     })
+    testImplementation(kotlin("test"))
 }
 
 application {
     mainClass.set("io.github.lukewilk.hardwareRunner.MainKt")
 }
 
-koverReport {
-    filters {
-        excludes {
-            classes (
-            )
-        }
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
