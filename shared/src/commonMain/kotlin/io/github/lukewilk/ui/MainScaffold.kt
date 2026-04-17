@@ -40,15 +40,6 @@ internal fun mainScaffoldMenuItems(): List<Pair<String, String>> = listOf(
     "Training" to "🎓"
 )
 
-internal fun mainScaffoldSidebarWidth(isSidebarOpen: Boolean, expandedWidth: Int = 200, collapsedWidth: Int = 56): Int =
-    if (isSidebarOpen) expandedWidth else collapsedWidth
-
-internal fun mainScaffoldHeaderFallbackText(isSidebarOpen: Boolean, hasCustomHeader: Boolean): String? = when {
-    !isSidebarOpen -> "≡"
-    hasCustomHeader -> null
-    else -> "Neuro Rook"
-}
-
 internal fun mainScaffoldPlaceholderLabel(selectedTab: Int, menuItems: List<Pair<String, String>> = mainScaffoldMenuItems()): String? {
     if (selectedTab == 0) return null
 
@@ -56,15 +47,13 @@ internal fun mainScaffoldPlaceholderLabel(selectedTab: Int, menuItems: List<Pair
     return selectedItem.first
 }
 
-internal fun mainScaffoldPlaceholderText(label: String): String = "$label screen coming soon..."
-
 internal fun mainScaffoldUiState(
     selectedTab: Int,
     isSidebarOpen: Boolean,
     hasCustomHeader: Boolean,
     menuItems: List<Pair<String, String>> = mainScaffoldMenuItems()
 ): MainScaffoldUiState = MainScaffoldUiState(
-    sidebarWidth = mainScaffoldSidebarWidth(isSidebarOpen),
+    sidebarWidth = if (isSidebarOpen) 200 else 56,
     defaultHeaderTitle = if (isSidebarOpen && !hasCustomHeader) "Neuro Rook" else null,
     menuItems = menuItems.mapIndexed { index, (label, icon) ->
         MainScaffoldMenuItem(label = label, icon = icon, selected = index == selectedTab)
@@ -72,19 +61,13 @@ internal fun mainScaffoldUiState(
     placeholderLabel = mainScaffoldPlaceholderLabel(selectedTab, menuItems)
 )
 
-@Composable
-internal fun MainScaffoldHeaderLabel(text: String) {
-    Text(
-        text,
-        fontSize = 20.sp,
-        color = MaterialTheme.colorScheme.onSecondaryContainer
-    )
-}
-
-@Composable
-internal fun MainScaffoldPlaceholderLabelText(label: String) {
-    Text(mainScaffoldPlaceholderText(label), color = MaterialTheme.colorScheme.onBackground)
-}
+internal fun mainScaffoldNavigationItems(
+    menuItems: List<MainScaffoldMenuItem>,
+    onSelectTab: (Int) -> Unit
+): List<Pair<String, () -> Unit>> =
+    menuItems.mapIndexed { index, item ->
+        item.label to { onSelectTab(index) }
+    }
 
 @Composable
 fun MainScaffold(
@@ -102,9 +85,7 @@ fun MainScaffold(
             menuItems = menuItems
         )
     }
-    val navigationItems = uiState.menuItems.mapIndexed { index, item ->
-        item.label to { selectedTab = index }
-    }
+    val navigationItems = mainScaffoldNavigationItems(uiState.menuItems) { selectedTab = it }
 
     Row(Modifier.fillMaxSize()) {
         MenuSidebar(
@@ -125,9 +106,10 @@ fun MainScaffold(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             val placeholderLabel = uiState.placeholderLabel
-            when {
-                placeholderLabel == null -> hardwareScreen()
-                else -> PlaceholderScreen(placeholderLabel)
+            if (placeholderLabel == null) {
+                hardwareScreen()
+            } else {
+                PlaceholderScreen(placeholderLabel)
             }
         }
     }
@@ -136,7 +118,11 @@ fun MainScaffold(
 @Composable
 internal fun PlaceholderScreen(label: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        MainScaffoldPlaceholderLabelText(label)
+        Text(
+            text = "$label screen coming soon...",
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = 20.sp
+        )
     }
 }
 

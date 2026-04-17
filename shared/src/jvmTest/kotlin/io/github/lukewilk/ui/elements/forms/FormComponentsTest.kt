@@ -1,13 +1,17 @@
 package io.github.lukewilk.ui.elements.forms
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.layout.width
@@ -64,6 +68,76 @@ class FormComponentsTest {
             }
 
             onNodeWithText("/dev/ttyUSB0").assertIsDisplayed().assertIsNotEnabled()
+        }
+    }
+
+    @Test
+    fun `styled outlined text field keeps monospace styling while enabled`() {
+        // Exercises the enabled + fontFamily branch together so the field applies the caller's font family while active.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    StyledOutlinedTextField(
+                        value = "/dev/ttyACM0",
+                        onValueChange = {},
+                        enabled = true,
+                        placeholder = "Port",
+                        modifier = Modifier.width(260.dp),
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            onNodeWithText("/dev/ttyACM0").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `styled outlined text field accepts explicit defaults and alternate composition local text style`() {
+        // Exercises default-parameter slots and the textStyle path without relying on implicit defaults alone.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    CompositionLocalProvider(
+                        LocalTextStyle provides MaterialTheme.typography.titleMedium
+                    ) {
+                        StyledOutlinedTextField(
+                            value = "explicit",
+                            onValueChange = {},
+                            enabled = true,
+                            placeholder = "",
+                            modifier = Modifier.width(280.dp),
+                            textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
+                            fontFamily = null
+                        )
+                    }
+                }
+            }
+
+            onNodeWithText("explicit").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `styled outlined text field forwards IME text into onValueChange`() {
+        val value = mutableStateOf("")
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    StyledOutlinedTextField(
+                        value = value.value,
+                        onValueChange = { value.value = it },
+                        placeholder = "Port",
+                        modifier = Modifier.width(320.dp)
+                    )
+                }
+            }
+
+            onNodeWithText("Port").assertIsDisplayed()
+            onAllNodes(hasSetTextAction())[0].performTextInput("tty")
+            waitForIdle()
+            assertEquals("tty", value.value)
+            onNodeWithText("tty").assertIsDisplayed()
         }
     }
 

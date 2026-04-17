@@ -14,21 +14,14 @@ import kotlin.test.Test
 @OptIn(ExperimentalTestApi::class)
 class MainScaffoldTest {
     @Test
-    fun `main scaffold extracted label composables render header and placeholder text directly`() {
-        // Covers the tiny extracted label composables directly so their text-rendering paths are attributed outside the larger scaffold body.
+    fun `placeholder screen renders placeholder text directly`() {
         runComposeUiTest {
             setContent {
                 MaterialTheme {
-                    androidx.compose.foundation.layout.Column {
-                        MainScaffoldHeaderLabel("Direct Header")
-                        MainScaffoldPlaceholderLabelText("Protocols")
-                        PlaceholderScreen("Signals")
-                    }
+                    PlaceholderScreen("Signals")
                 }
             }
 
-            onNodeWithText("Direct Header").assertIsDisplayed()
-            onNodeWithText("Protocols screen coming soon...").assertIsDisplayed()
             onNodeWithText("Signals screen coming soon...").assertIsDisplayed()
         }
     }
@@ -120,6 +113,31 @@ class MainScaffoldTest {
     }
 
     @Test
+    fun `main scaffold keeps custom header visible while placeholders replace the hardware pane`() {
+        // Exercises remember(selectedTab, isSidebarOpen, headerContent) together with the hardware vs placeholder branch when callers supply headerContent.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MainScaffold(
+                        hardwareScreen = {
+                            androidx.compose.material3.Text("Hardware screen content")
+                        },
+                        headerContent = {
+                            androidx.compose.material3.Text("Branded Shell Header")
+                        }
+                    )
+                }
+            }
+
+            onNodeWithText("Branded Shell Header").assertIsDisplayed()
+            onNodeWithText("Graphs").performClick()
+            onNodeWithText("Graphs screen coming soon...").assertIsDisplayed()
+            onNodeWithText("Branded Shell Header").assertIsDisplayed()
+            onNodeWithText("Hardware screen content").assertDoesNotExist()
+        }
+    }
+
+    @Test
     fun `main scaffold shows the collapsed menu glyph after closing the sidebar`() {
         // Exercises the collapsed-sidebar header branch so the compact menu affordance stays visible.
         runComposeUiTest {
@@ -135,6 +153,28 @@ class MainScaffoldTest {
 
             onNodeWithText("≡").performClick()
             onNodeWithText("≡").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `main scaffold restores the Neuro Rook sidebar title after collapsing and reopening`() {
+        // Covers the default-header title branch when isSidebarOpen flips false then true without custom header content.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MainScaffold(
+                        hardwareScreen = {
+                            androidx.compose.material3.Text("Hardware screen content")
+                        }
+                    )
+                }
+            }
+
+            onNodeWithText("Neuro Rook").assertIsDisplayed()
+            onNodeWithText("≡").performClick()
+            onNodeWithText("Neuro Rook").assertDoesNotExist()
+            onNodeWithText("≡").performClick()
+            onNodeWithText("Neuro Rook").assertIsDisplayed()
         }
     }
 

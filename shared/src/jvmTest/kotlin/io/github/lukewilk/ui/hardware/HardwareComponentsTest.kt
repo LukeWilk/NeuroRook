@@ -1,11 +1,13 @@
 package io.github.lukewilk.ui.hardware
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -20,7 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * JVM UI coverage tests for the shared hardware-focused cards and tables.
+ * JVM UI tests for the shared hardware-focused cards and tables.
  */
 @OptIn(ExperimentalTestApi::class)
 class HardwareComponentsTest {
@@ -191,10 +193,75 @@ class HardwareComponentsTest {
     }
 
     @Test
-    fun `board control card renders statuses and forwards toggles`() {
-        // Exercises the channel table, status-badge branches, and streaming indicator from the parent control card.
-        val toggledChannels = mutableListOf<Pair<Int, Boolean>>()
-        val toggledRlds = mutableListOf<Pair<Int, Boolean>>()
+    fun `board control card shows streaming active indicator when streaming`() {
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(900.dp, 700.dp)) {
+                        BoardControlCard(
+                            availableBoards = listOf("Cyton"),
+                            selectedBoard = 0,
+                            isConnected = true,
+                            isStreaming = true,
+                            isBusy = false,
+                            channels = emptyList(),
+                            onChannelToggle = { _, _ -> },
+                            onRldToggle = { _, _ -> },
+                            onVerifyChannels = {},
+                            onStartStreaming = {},
+                            onStopStreaming = {}
+                        )
+                    }
+                }
+            }
+
+            onNodeWithText("Streaming Active", useUnmergedTree = true).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `board control card forwards verify and start stream clicks when connected`() {
+        var verifyClicks = 0
+        var startClicks = 0
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    androidx.compose.foundation.layout.Column {
+                        VerticalSpacer(height = 4.dp)
+                        BoardControlCard(
+                            availableBoards = listOf("Cyton"),
+                            selectedBoard = 0,
+                            isConnected = true,
+                            isStreaming = false,
+                            isBusy = false,
+                            channels = emptyList(),
+                            onChannelToggle = { _, _ -> },
+                            onRldToggle = { _, _ -> },
+                            onVerifyChannels = { verifyClicks += 1 },
+                            onStartStreaming = { startClicks += 1 },
+                            onStopStreaming = {}
+                        )
+                    }
+                }
+            }
+
+            onNodeWithText("Cyton Control").assertIsDisplayed()
+            onNodeWithText("Verify Channels").assertIsDisplayed()
+            onNodeWithText("Verify Channels").performClick()
+            waitForIdle()
+            onNodeWithText("Start Stream").assertIsDisplayed()
+            onNodeWithText("Start Stream").performClick()
+            waitForIdle()
+        }
+
+        assertEquals(1, verifyClicks)
+        assertEquals(1, startClicks)
+    }
+
+    @Test
+    fun `board control card forwards stop stream when streaming`() {
+        var stopClicks = 0
 
         runComposeUiTest {
             setContent {
@@ -207,26 +274,23 @@ class HardwareComponentsTest {
                             isConnected = true,
                             isStreaming = true,
                             isBusy = false,
-                            channels = listOf(
-                                ChannelState(id = 0, name = "Channel 1", enabled = true, rld = false, status = "Configured"),
-                                ChannelState(id = 1, name = "Channel 2", enabled = false, rld = true, status = "Not configured")
-                            ),
-                            onChannelToggle = { id, enabled -> toggledChannels += id to enabled },
-                            onRldToggle = { id, enabled -> toggledRlds += id to enabled },
+                            channels = emptyList(),
+                            onChannelToggle = { _, _ -> },
+                            onRldToggle = { _, _ -> },
                             onVerifyChannels = {},
                             onStartStreaming = {},
-                            onStopStreaming = {}
+                            onStopStreaming = { stopClicks += 1 }
                         )
                     }
                 }
             }
 
-            onNodeWithText("Cyton Control").assertIsDisplayed()
-            onNodeWithText("Channel Configuration").assertIsDisplayed()
+            onNodeWithText("Stop Stream").assertIsDisplayed()
+            onNodeWithText("Stop Stream").performClick()
+            waitForIdle()
         }
 
-        assertEquals(emptyList(), toggledChannels)
-        assertEquals(emptyList(), toggledRlds)
+        assertEquals(1, stopClicks)
     }
 
     @Test
@@ -294,6 +358,23 @@ class HardwareComponentsTest {
             }
 
             onNodeWithText("ERROR • Standalone failure", substring = true).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `system log card accepts an explicit modifier`() {
+        // Exercises the explicit modifier argument path on the composable wrapper rather than relying only on the default.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    SystemLogCard(
+                        logs = listOf(SystemLogEntry(9L, SystemLogSeverity.INFO, "Explicit modifier")),
+                        modifier = androidx.compose.ui.Modifier
+                    )
+                }
+            }
+
+            onNodeWithText("INFO • Explicit modifier", substring = true).assertIsDisplayed()
         }
     }
 

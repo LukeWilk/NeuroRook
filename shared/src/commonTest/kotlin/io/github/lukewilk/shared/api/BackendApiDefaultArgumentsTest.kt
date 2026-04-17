@@ -20,17 +20,18 @@ class BackendApiDefaultArgumentsTest {
 	@Test
 	fun `backend api default arguments forward the expected fallback values`() = runBlocking {
 		// Exercises interface calls that omit optional arguments so the generated default bridges are covered.
-		val api = RecordingBackendApi()
+		val recordingApi = RecordingBackendApi()
+		val api: BackendApi = recordingApi
 
 		assertTrue(api.connect("SYNTHETIC_BOARD"))
 		assertTrue(api.enableRLD())
 		assertTrue(api.disableRLD())
 		assertEquals(emptyList(), api.getSerialPortSuggestions())
 
-		assertEquals(Triple("SYNTHETIC_BOARD", "", 0), api.connectArgs.single())
-		assertEquals(listOf(0), api.enableRldArgs)
-		assertEquals(listOf(0), api.disableRldArgs)
-		assertEquals(listOf<String?>(null), api.serialPortSuggestionArgs)
+		assertEquals(Triple("SYNTHETIC_BOARD", "", 0), recordingApi.connectArgs.single())
+		assertEquals(listOf(0), recordingApi.enableRldArgs)
+		assertEquals(listOf(0), recordingApi.disableRldArgs)
+		assertEquals(listOf<String?>(null), recordingApi.serialPortSuggestionArgs)
 	}
 }
 

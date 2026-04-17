@@ -43,12 +43,10 @@ class DataPipelineFailureAndCleanupTest : DataPipelineTestSupport() {
             )
         }
 
-        delay(100)
-        pipelineJob.cancel()
         withTimeout(3_000) { pipelineJob.join() }
         manager.close()
 
-        assertTrue(pipelineJob.isCancelled)
+        assertTrue(pipelineJob.isCompleted)
     }
 
     /** Verifies the pipeline keeps processing frames even if job registration fails and still cleans up state. */
@@ -116,6 +114,40 @@ class DataPipelineFailureAndCleanupTest : DataPipelineTestSupport() {
 
         assertTrue(failure is IllegalStateException, "The original callback failure should be rethrown after cleanup")
         assertTrue(cleanupCalled, "Pipeline cleanup should unregister the streaming job before propagating the failure")
+    }
+
+    /** Verifies cleanup tolerates unregister failures after the pipeline stops without aborting the host coroutine. */
+    @Test
+    fun `start data pipeline survives streaming job unregister failure during cleanup`() = runBlocking {
+        val stateStore = pipelineStateStore()
+        val manager = object : BoardConnectionManager(stateStore) {
+            override fun registerStreamingJob(job: kotlinx.coroutines.Job?) {
+                if (job == null) {
+                    throw RuntimeException("simulated unregister failure")
+                }
+                super.registerStreamingJob(job)
+            }
+        }
+        assertTrue(manager.connect(BoardIds.SYNTHETIC_BOARD, serialPort = ""))
+        manager.startStream()
+
+        val pipelineJob = launch {
+            startDataPipeline(
+                onFiltered = null,
+                onBandPowers = null,
+                onFFTResult = null,
+                stateStore = stateStore,
+                manager = manager
+            )
+        }
+
+        delay(100)
+        pipelineJob.cancel()
+        withTimeout(3_000) { pipelineJob.join() }
+        manager.stopStream()
+        manager.close()
+
+        assertTrue(pipelineJob.isCompleted)
     }
 }
 

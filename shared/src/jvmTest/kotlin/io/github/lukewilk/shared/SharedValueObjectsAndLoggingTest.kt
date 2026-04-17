@@ -18,7 +18,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
- * JVM coverage tests for shared value objects and logging helpers.
+ * JVM tests for shared value objects and logging logic.
  */
 class SharedValueObjectsAndLoggingTest {
     @Test
@@ -45,11 +45,58 @@ class SharedValueObjectsAndLoggingTest {
     }
 
     @Test
+    fun `shared filter configs preserve numeric constructor fields and copies`() {
+        val bandpass = BandpassConfig(
+            lowCut = 1.0,
+            highCut = 40.0,
+            order = 4,
+            samplingRate = 250,
+            filterType = 1,
+            ripple = 0.1
+        )
+        val bandstop = BandstopConfig(
+            startFreq = 48.0,
+            stopFreq = 52.0,
+            order = 2,
+            samplingRate = 250,
+            filterType = 2,
+            ripple = 0.2
+        )
+
+        assertEquals(1.0, bandpass.lowCut)
+        assertEquals(40.0, bandpass.highCut)
+        assertEquals(4, bandpass.order)
+        assertEquals(250, bandpass.samplingRate)
+        assertEquals(1, bandpass.filterType)
+        assertEquals(0.1, bandpass.ripple)
+
+        assertEquals(48.0, bandstop.startFreq)
+        assertEquals(52.0, bandstop.stopFreq)
+        assertEquals(2, bandstop.order)
+        assertEquals(250, bandstop.samplingRate)
+        assertEquals(2, bandstop.filterType)
+        assertEquals(0.2, bandstop.ripple)
+
+        assertEquals(3, bandpass.copy(order = 3).order)
+        assertEquals(49.0, bandstop.copy(startFreq = 49.0).startFreq)
+    }
+
+    @Test
     fun `resolved log severity uppercases known values and falls back to info`() {
         // Verifies shared logger configuration stays deterministic for valid, missing, and invalid severity values.
         assertEquals(Severity.Warn, resolvedLogSeverity("warn"))
         assertEquals(Severity.Info, resolvedLogSeverity(null))
         assertEquals(Severity.Info, resolvedLogSeverity("not-a-level"))
+    }
+
+    @Test
+    fun `resolved log severity matches every kermit severity name case insensitively`() {
+        // Drives the Severity.entries.find branch so each enum constant resolves through the same normalization path.
+        for (severity in Severity.entries) {
+            assertEquals(severity, resolvedLogSeverity(severity.name))
+            assertEquals(severity, resolvedLogSeverity(severity.name.lowercase()))
+            assertEquals(severity, resolvedLogSeverity("  ${severity.name}  "))
+        }
     }
 
     @Test
@@ -120,7 +167,7 @@ class SharedValueObjectsAndLoggingTest {
 
     @Test
     fun `logger provider returns a logger instance for caller tags`() {
-        // Exercises the shared logger-provider entry point directly inside the instrumented JVM process for coverage.
+        // Exercises the shared logger-provider entry point directly inside the JVM test process.
         assertNotNull(LoggerProvider.getLogger("SharedValueObjectsAndLoggingTest"))
     }
 }

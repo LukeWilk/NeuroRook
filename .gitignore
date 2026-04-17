@@ -2,6 +2,8 @@
 
 # Ignore hidden files and directories
 .*
+!.github/
+!.github/**
 
 # IntelliJ / Android Studio
 *.iml
@@ -57,4 +59,3 @@ yarn-error.log*
 /.idea/caches/
 *.tmp
 *.swp
-package-lock.json

@@ -7,13 +7,14 @@ import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.shared.model.SerialPortSuggestion
 import io.github.lukewilk.shared.model.SystemLogEntry
 import io.github.lukewilk.shared.model.SystemLogSeverity
-import io.github.lukewilk.ui.hardware.deviceSelectionUiState
 import io.github.lukewilk.ui.hardware.boardControlCard.boardControlUiState
 import io.github.lukewilk.ui.hardware.boardControlCard.channelTableRowUiState
+import io.github.lukewilk.ui.hardware.deviceSelectionUiState
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,12 +23,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * JVM unit tests for the pure helper logic that backs the shared hardware screen.
+ * JVM state tests for the shared hardware screen logic.
  */
-class HardwareScreenHelperTest {
+class HardwareScreenStateTest {
     @Test
-    fun `board load helpers resolve default and error states`() {
-        // Confirms normal and error board-loading branches pick the expected selected board and fallback text.
+    fun `board load state resolves default and error states`() {
         val syntheticFirst = resolveBoardLoadState(listOf("CYTON_BOARD", "SYNTHETIC_BOARD"))
         val noBoards = resolveBoardLoadState(emptyList())
         val unresolved = unresolvedBoards("Backend offline")
@@ -43,7 +43,6 @@ class HardwareScreenHelperTest {
 
     @Test
     fun `load board state handles missing backend filtered boards and backend failures`() {
-        // Verifies the extracted board-loading helper covers unavailable, filtered-success, and exception branches.
         val successApi = FakeBackendApi(boards = listOf("NO_BOARD", "CYTON_BOARD", "SYNTHETIC_BOARD"))
         val failureApi = FakeBackendApi(boardFailure = IllegalStateException("Board service down"))
 
@@ -61,33 +60,34 @@ class HardwareScreenHelperTest {
 
     @Test
     fun `load board state falls back to an unknown error when the backend exception has no message`() {
-        // Covers the error-message fallback so board loading stays readable even for blank backend failures.
         val failureApi = FakeBackendApi(boardFailure = IllegalStateException())
-
         assertEquals("Unknown error", loadBoardState(failureApi).errorMessage)
     }
 
     @Test
-    fun `board label helpers cover loading empty error and formatted ids`() {
-        // Verifies the screen-level board labels stay readable across loading, failure, empty, and normal states.
+    fun `board label logic covers loading empty error and formatted ids`() {
         assertEquals(listOf("Loading boards..."), boardLabelsFor(true, null, listOf("IGNORED")))
         assertEquals(listOf("Unable to load boards"), boardLabelsFor(false, "Failed", emptyList()))
         assertEquals(listOf("No boards available"), boardLabelsFor(false, null, emptyList()))
         assertEquals(listOf("Synthetic", "Ganglion Wifi"), boardLabelsFor(false, null, listOf("SYNTHETIC_BOARD", "GANGLION_WIFI_BOARD")))
         assertEquals("Cyton Daisy", formatBoardLabel("CYTON_DAISY_BOARD"))
         assertEquals("3 Lead Ecg", formatBoardLabel("3_LEAD_ECG_BOARD"))
+        assertEquals("Cyton Daisy", formatBoardLabel("CYTON__DAISY_BOARD"))
+        assertEquals("Cyton", formatBoardLabel("CYTON_ _BOARD"))
+        assertEquals("", formatBoardLabel("_BOARD"))
     }
 
     @Test
-    fun `board label part helper title cases alphabetic segments and preserves numeric prefixes`() {
-        // Covers the extracted single-part formatter directly so both alphabetic and numeric-leading cases are attributed cleanly.
+    fun `board label part logic title cases alphabetic segments and preserves numeric prefixes`() {
         assertEquals("Cyton", formatBoardLabelPart("CYTON"))
+        assertEquals("Hello", formatBoardLabelPart("hello"))
         assertEquals("3lead", formatBoardLabelPart("3LEAD"))
+        assertEquals("Mixedcase", formatBoardLabelPart("MIXEDCASE"))
+        assertEquals("", formatBoardLabelPart(""))
     }
 
     @Test
     fun `system log merge keeps backend logs and appends unique fallback entries`() {
-        // Covers the helper branches that avoid duplicates while still surfacing fallback warnings and errors.
         val backendLog = SystemLogEntry(1L, SystemLogSeverity.INFO, "Connected")
         val fallbackLog = SystemLogEntry(2L, SystemLogSeverity.ERROR, "Backend offline")
 
@@ -101,22 +101,32 @@ class HardwareScreenHelperTest {
     }
 
     @Test
-    fun `fallback log entry helper covers backend unavailable error and success states`() {
-        // Verifies the screen-level fallback log helper emits warning, error, or null depending on the load state.
+    fun `fallback log entry logic covers backend unavailable error and success states`() {
         val unavailable = fallbackLogEntryFor(true, null, 10L)
         val error = fallbackLogEntryFor(false, "Board lookup failed", 11L)
         val success = fallbackLogEntryFor(false, null, 12L)
+        val blankErrorIgnored = fallbackLogEntryFor(false, "   ", 13L)
 
         assertEquals(SystemLogSeverity.WARN, unavailable?.severity)
         assertEquals("Hardware backend is unavailable on this platform.", unavailable?.message)
         assertEquals(SystemLogSeverity.ERROR, error?.severity)
         assertEquals("Board lookup failed", error?.message)
         assertNull(success)
+        assertNull(blankErrorIgnored)
     }
 
     @Test
-    fun `serial port helpers prefer recommended usb and first available suggestions`() {
-        // Documents how automatic serial-port selection prioritizes recommended and USB devices.
+    fun `merge system logs appends fallback when backend list is non empty and message differs`() {
+        val backendLog = SystemLogEntry(1L, SystemLogSeverity.INFO, "Live backend")
+        val fallback = SystemLogEntry(2L, SystemLogSeverity.WARN, "Extra notice")
+        assertEquals(
+            listOf(backendLog, fallback),
+            mergeSystemLogs(listOf(backendLog), fallback)
+        )
+    }
+
+    @Test
+    fun `serial port selection prefers recommended usb and first available suggestions`() {
         val suggestions = listOf(
             SerialPortSuggestion(path = "/dev/ttyS0", displayName = "Legacy"),
             SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB", isUsbDevice = true),
@@ -131,8 +141,7 @@ class HardwareScreenHelperTest {
     }
 
     @Test
-    fun `preferred serial port path helper covers recommended usb first and empty fallback ordering`() {
-        // Covers the extracted suggestion-order helper directly so Kover attributes the recommendation chain to the named function.
+    fun `preferred serial port path covers recommended usb first and empty fallback ordering`() {
         val recommended = listOf(
             SerialPortSuggestion(path = "/dev/ttyS0", displayName = "Legacy"),
             SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Board", isRecommended = true)
@@ -140,15 +149,18 @@ class HardwareScreenHelperTest {
         val usbOnly = listOf(
             SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB", isUsbDevice = true)
         )
+        val genericOnly = listOf(
+            SerialPortSuggestion(path = "/dev/onlypath", displayName = "Port")
+        )
 
         assertEquals("/dev/ttyACM0", preferredSerialPortPath(recommended))
         assertEquals("/dev/ttyUSB0", preferredSerialPortPath(usbOnly))
+        assertEquals("/dev/onlypath", preferredSerialPortPath(genericOnly))
         assertEquals("", preferredSerialPortPath(emptyList()))
     }
 
     @Test
-    fun `serial port helper functions cover placeholder support text and auto selection rules`() {
-        // Verifies placeholder/support-text branches and the auto-selection guard used by the hardware screen.
+    fun `serial port logic covers placeholder support text and auto selection rules`() {
         val recommended = listOf(
             SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Board", isRecommended = true)
         )
@@ -174,6 +186,10 @@ class HardwareScreenHelperTest {
         )
         assertEquals(
             "No active serial devices were detected. Plug in your board or enter a port manually.",
+            serialPortSupportTextFor("CYTON_BOARD", false, "   ", emptyList())
+        )
+        assertEquals(
+            "No active serial devices were detected. Plug in your board or enter a port manually.",
             serialPortSupportTextFor("CYTON_BOARD", false, null, emptyList())
         )
         assertEquals(
@@ -193,7 +209,6 @@ class HardwareScreenHelperTest {
 
     @Test
     fun `load serial port state handles unavailable blank synthetic success manual and failure branches`() {
-        // Confirms the extracted serial-port loading helper preserves all of the UI-side state transitions.
         val suggestions = listOf(
             SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB", isUsbDevice = true),
             SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Recommended", isRecommended = true)
@@ -250,7 +265,6 @@ class HardwareScreenHelperTest {
 
     @Test
     fun `load serial port state preserves manual custom paths and falls back to unknown errors`() {
-        // Covers the retain-manual-value branches for unavailable and synthetic boards plus the blank-message failure fallback.
         val emptySuggestionsApi = FakeBackendApi(serialSuggestions = emptyList())
         val blankFailureApi = FakeBackendApi(serialFailure = IllegalStateException())
 
@@ -295,8 +309,54 @@ class HardwareScreenHelperTest {
     }
 
     @Test
+    fun `load serial port state retains last auto selection when suggestions empty and user keeps manual port`() {
+        val emptySuggestionsApi = FakeBackendApi(serialSuggestions = emptyList())
+        val state = loadSerialPortUiState(
+            backendApi = emptySuggestionsApi,
+            selectedBoardId = "CYTON_BOARD",
+            serialPort = "/dev/manual-only",
+            lastAutoSelectedSerialPort = "/dev/prior-auto",
+            hasManualSerialPortSelection = true
+        )
+        assertEquals("/dev/manual-only", state.serialPort)
+        assertEquals("/dev/prior-auto", state.lastAutoSelectedSerialPort)
+        assertEquals(emptyList(), state.serialPortSuggestions)
+        assertNull(state.serialPortLoadError)
+    }
+
+    @Test
+    fun `load serial port state clears last auto marker when auto select yields blank default path`() {
+        val emptyPathSuggestions = listOf(SerialPortSuggestion(path = "", displayName = "Placeholder port"))
+        val api = FakeBackendApi(serialSuggestions = emptyPathSuggestions)
+        val state = loadSerialPortUiState(
+            backendApi = api,
+            selectedBoardId = "CYTON_BOARD",
+            serialPort = "",
+            lastAutoSelectedSerialPort = null,
+            hasManualSerialPortSelection = false
+        )
+        assertEquals("", state.serialPort)
+        assertNull(state.lastAutoSelectedSerialPort)
+        assertEquals(emptyPathSuggestions, state.serialPortSuggestions)
+    }
+
+    @Test
+    fun `load serial port state records suggested default path as last auto marker when manual selection blocks auto apply`() {
+        val suggestions = listOf(SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Adapter", isRecommended = true))
+        val api = FakeBackendApi(serialSuggestions = suggestions)
+        val state = loadSerialPortUiState(
+            backendApi = api,
+            selectedBoardId = "CYTON_BOARD",
+            serialPort = "/dev/my-custom",
+            lastAutoSelectedSerialPort = "/dev/old",
+            hasManualSerialPortSelection = true
+        )
+        assertEquals("/dev/my-custom", state.serialPort)
+        assertEquals("/dev/ttyACM0", state.lastAutoSelectedSerialPort)
+    }
+
+    @Test
     fun `selected serial port suggestion index prefers explicit path then recommended then zero`() {
-        // Covers the index ranking helper used to preselect the best matching serial suggestion in the UI.
         val suggestions = listOf(
             SerialPortSuggestion(path = "/dev/ttyS0", displayName = "Legacy"),
             SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "Recommended", isRecommended = true)
@@ -305,11 +365,15 @@ class HardwareScreenHelperTest {
         assertEquals(0, selectedSerialPortSuggestionIndex("/dev/ttyS0", suggestions))
         assertEquals(1, selectedSerialPortSuggestionIndex("/dev/missing", suggestions))
         assertEquals(0, selectedSerialPortSuggestionIndex("/dev/missing", emptyList()))
+        val genericOnly = listOf(
+            SerialPortSuggestion(path = "/dev/ttyS0", displayName = "Legacy"),
+            SerialPortSuggestion(path = "/dev/ttyS1", displayName = "Other")
+        )
+        assertEquals(0, selectedSerialPortSuggestionIndex("/dev/unknown", genericOnly))
     }
 
     @Test
-    fun `connect request and selected serial path helpers cover missing board trimming and fallback selection`() {
-        // Verifies the extracted connect-request and suggestion-path helpers preserve the same UI-side defaults.
+    fun `connect request and selected serial path logic cover missing board trimming and fallback selection`() {
         val suggestions = listOf(
             SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB"),
             SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Recommended")
@@ -330,8 +394,7 @@ class HardwareScreenHelperTest {
     }
 
     @Test
-    fun `channel and rld backend helpers dispatch enable and disable calls to the api`() = runBlocking {
-        // Covers the extracted suspend dispatch helpers without going through the Compose coroutine wrapper.
+    fun `channel and rld backend logic dispatch enable and disable calls to the api`() = runBlocking {
         val backendApi = FakeBackendApi()
 
         backendApi.setChannelEnabled(channelId = 7, enabled = true)
@@ -346,8 +409,7 @@ class HardwareScreenHelperTest {
     }
 
     @Test
-    fun `channel states helper uses hardware counts and falls back to eight channels`() {
-        // Verifies the channel-row derivation keeps ids, labels, and status flags aligned with the hardware state.
+    fun `channel state logic uses hardware counts and falls back to eight channels`() {
         val explicitChannels = channelStatesFor(
             HardwareState(
                 channels = 2,
@@ -369,8 +431,16 @@ class HardwareScreenHelperTest {
     }
 
     @Test
+    fun `useCompactHardwareLayout is true strictly below the breakpoint`() {
+        assertTrue(useCompactHardwareLayout(899.dp))
+        assertFalse(useCompactHardwareLayout(900.dp))
+        assertFalse(useCompactHardwareLayout(1200.dp))
+        assertTrue(useCompactHardwareLayout(499.dp, compactBreakpoint = 500.dp))
+        assertFalse(useCompactHardwareLayout(500.dp, compactBreakpoint = 500.dp))
+    }
+
+    @Test
     fun `hardware screen display state derives logs boards serial ui and channels together`() {
-        // Verifies the classical screen-level display-state builder combines board loading, fallback logs, serial hints, and channel rows coherently.
         val hardwareState = HardwareState(
             channels = 2,
             enabledChannels = listOf(1),
@@ -416,7 +486,6 @@ class HardwareScreenHelperTest {
 
     @Test
     fun `hardware screen display state falls back for unavailable backend loading boards and empty serial suggestions`() {
-        // Covers the feature-level fallback branches so the display-state builder stays coherent during unavailable or not-yet-ready startup states.
         val displayState = hardwareScreenDisplayState(
             backendApiAvailable = false,
             backendLogs = emptyList(),
@@ -445,8 +514,27 @@ class HardwareScreenHelperTest {
     }
 
     @Test
+    fun `hardware screen display state coerces selected board index into catalog range`() {
+        val displayState = hardwareScreenDisplayState(
+            backendApiAvailable = true,
+            backendLogs = emptyList(),
+            boardLoadError = null,
+            isLoadingBoards = false,
+            availableBoards = listOf("A_BOARD", "B_BOARD"),
+            selectedBoard = 99,
+            serialPort = "",
+            serialPortSuggestions = emptyList(),
+            isLoadingSerialPorts = false,
+            serialPortLoadError = null,
+            hardwareState = HardwareState(channels = 1),
+            timestampEpochMillis = 1L
+        )
+        assertEquals(1, displayState.resolvedSelectedBoard)
+        assertEquals("B_BOARD", displayState.selectedBoardId)
+    }
+
+    @Test
     fun `hardware screen display state shows board-load errors serial scan failures and plain preferred serial fallback`() {
-        // Covers the remaining display-state fallback branches for explicit board errors, serial scan failures, and first-item serial fallback ordering.
         val fallbackSuggestions = listOf(
             SerialPortSuggestion(path = "/dev/ttyS0", displayName = "Legacy Adapter"),
             SerialPortSuggestion(path = "/dev/ttyS1", displayName = "Backup Adapter")
@@ -479,8 +567,7 @@ class HardwareScreenHelperTest {
     }
 
     @Test
-    fun `device selection board control and channel row ui state builders derive feature behavior`() {
-        // Verifies the feature-level setup/control builders centralize enablement, labels, and row-state decisions without extra UI harness churn.
+    fun `device selection board control and channel row state builders derive feature behavior`() {
         val setupState = deviceSelectionUiState(
             serialPortSuggestions = listOf(SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB Adapter")),
             selectedSerialPortSuggestion = 9,
@@ -528,8 +615,7 @@ class HardwareScreenHelperTest {
     }
 
     @Test
-    fun `device selection and board control ui state builders cover connected busy and fallback title paths`() {
-        // Covers the remaining feature-level branches for busy connected setup state and the board-control fallback title while streaming.
+    fun `device selection and board control state builders cover connected busy and fallback title paths`() {
         val connectedSetupState = deviceSelectionUiState(
             serialPortSuggestions = emptyList(),
             selectedSerialPortSuggestion = 2,
@@ -568,8 +654,7 @@ class HardwareScreenHelperTest {
     }
 
     @Test
-    fun `board control ui state enables the stop action when streaming remains active and not busy`() {
-        // Covers the active stop-stream branch so the board-control feature state exposes the live-streaming action when the board is ready.
+    fun `board control state enables the stop action when streaming remains active and not busy`() {
         val streamingState = boardControlUiState(
             availableBoards = listOf("Cyton"),
             selectedBoard = 0,
@@ -584,9 +669,6 @@ class HardwareScreenHelperTest {
     }
 }
 
-/**
- * Small BackendApi fake used to drive the extracted HardwareScreen loader helpers deterministically.
- */
 private class FakeBackendApi(
     private val boards: List<String> = emptyList(),
     private val boardFailure: Throwable? = null,
@@ -635,4 +717,3 @@ private class FakeBackendApi(
     override fun setOnBandPowersListener(listener: ((List<BandPower>) -> Unit)?) = Unit
     override fun setOnFFTResultListener(listener: ((Array<Pair<Double, Double>>) -> Unit)?) = Unit
 }
-

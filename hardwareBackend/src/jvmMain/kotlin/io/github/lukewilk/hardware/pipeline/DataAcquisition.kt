@@ -108,6 +108,7 @@ class DataAcquisition(
                 logger.i { "Synthetic streaming cancelled: ${e.message}" }
             } catch (e: Exception) {
                 logger.e(e) { "Synthetic streaming error: ${e.message}" }
+                if (shouldRethrowStreamingException(e)) throw e
             } finally {
                 logger.i { "Synthetic streaming loop exiting" }
             }
@@ -193,6 +194,7 @@ class DataAcquisition(
                 logger.i { "Streaming loop cancelled: ${e.message}" }
             } catch (e: Exception) {
                 logger.e(e) { "Streaming loop error: ${e.message}" }
+                if (shouldRethrowStreamingException(e)) throw e
             } finally {
                 try { executor.shutdownNow() } catch (_: Exception) {}
                 logger.i { "Streaming loop exiting, executor shutdown" }
@@ -212,6 +214,12 @@ internal fun shouldContinueStreamingLoop(streaming: Boolean, connected: Boolean,
     if (!streaming) return false
     if (!connected) return false
     return isActive
+}
+
+internal fun shouldRethrowStreamingException(error: Exception): Boolean {
+    return error.stackTrace.any { stackFrame ->
+        stackFrame.className.contains("SafeCollector") || stackFrame.className.contains("BufferKt\$buffer")
+    }
 }
 
 internal fun shouldEmitCurrentWindow(streaming: Boolean, isActive: Boolean): Boolean {

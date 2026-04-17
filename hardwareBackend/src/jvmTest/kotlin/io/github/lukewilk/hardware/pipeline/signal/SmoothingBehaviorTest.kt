@@ -22,6 +22,21 @@ class SmoothingBehaviorTest {
         assertEquals(9.0, oneAlpha.update(9.0), 1e-9)
     }
 
+    /** Verifies the default EMA constructor uses the documented alpha and still smooths values. */
+    @Test
+    fun `exponential moving average default constructor uses the default alpha`() {
+        val constructor = ExponentialMovingAverage::class.java.getDeclaredConstructor(
+            Double::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType,
+            Class.forName("kotlin.jvm.internal.DefaultConstructorMarker")
+        )
+        val ema = constructor.newInstance(0.0, 1, null) as ExponentialMovingAverage
+
+        assertEquals(10.0, ema.update(10.0), 1e-9)
+        assertEquals(13.0, ema.update(20.0), 1e-9)
+        assertEquals(0.3, ema.alpha, 1e-9)
+    }
+
     /** Verifies EMA smoothing preserves size, anchors on the first value, and smooths later values. */
     @Test
     fun `apply exponential moving average smooths the signal`() {

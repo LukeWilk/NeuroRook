@@ -8,10 +8,9 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 /**
- * Direct retry-helper and retry-predicate tests for `BoardConnectionManager`.
+ * Retry and retry-predicate tests for `BoardConnectionManager`.
  */
-class BoardConnectionManagerRetryHelperTest : BoardConnectionManagerTestSupport() {
-    /** Verifies retryPrepareSession swaps to a replacement shim when called directly. */
+class BoardConnectionManagerRetryTest : BoardConnectionManagerTestSupport() {
     @Test
     fun `retry prepare session swaps in the replacement shim`() {
         val params = BrainFlowInputParams()
@@ -26,7 +25,6 @@ class BoardConnectionManagerRetryHelperTest : BoardConnectionManagerTestSupport(
         retryManager.retryPrepareSession(BoardIds.NEUROPAWN_KNIGHT_BOARD, params)
         assertTrue(retryManager.getBoardShim() === secondShim)
     }
-    /** Verifies the retry predicate only matches the expected BrainFlow error message fragment. */
     @Test
     fun `is another board created error matches the expected message only`() {
         val localManager = BoardConnectionManager(StateStore(HardwareState()))
@@ -34,7 +32,6 @@ class BoardConnectionManagerRetryHelperTest : BoardConnectionManagerTestSupport(
         assertFalse(localManager.isAnotherBoardCreatedError(RuntimeException("different error")))
         assertFalse(localManager.isAnotherBoardCreatedError(Exception()))
     }
-    /** Verifies retryPrepareSession still swaps the shim when release_session itself fails. */
     @Test
     fun `retry prepare session handles release failures directly`() {
         val params = BrainFlowInputParams()
@@ -51,7 +48,6 @@ class BoardConnectionManagerRetryHelperTest : BoardConnectionManagerTestSupport(
         retryManager.retryPrepareSession(BoardIds.NEUROPAWN_KNIGHT_BOARD, params)
         assertTrue(retryManager.getBoardShim() === secondShim)
     }
-    /** Verifies retryPrepareSession also works when there is no existing shim to release first. */
     @Test
     fun `retry prepare session handles a missing existing shim`() {
         val params = BrainFlowInputParams()

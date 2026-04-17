@@ -15,12 +15,29 @@ import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * UI smoke tests for the shared navigation components.
  */
 @OptIn(ExperimentalTestApi::class)
 class NavigationComponentsTest {
+    @Test
+    fun `menu item ui state data class supports copy and destructuring`() {
+        var clicks = 0
+        val original = MenuItemUiState(label = "Hardware", onClick = { clicks += 1 })
+        val updated = original.copy(icon = "🔧", selected = true)
+        val (label, onClick, icon, selected) = updated
+
+        assertEquals("Hardware", label)
+        assertEquals("🔧", icon)
+        assertTrue(selected)
+
+        onClick()
+        assertEquals(1, clicks)
+    }
+
     @Test
     fun `menu item displays its label and invokes the click action`() {
         // Verifies the reusable menu item forwards user clicks to the provided callback.
@@ -56,6 +73,32 @@ class NavigationComponentsTest {
 
             onNodeWithText("🔧").assertIsDisplayed()
             onNodeWithText("Hardware").assertIsDisplayed().performClick()
+            onNodeWithText("Clicks: 1").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `menu item ui state overload renders and delegates click`() {
+        // Covers the MenuItem(MenuItemUiState) overload used by Menu mapping.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    var clicks by remember { mutableIntStateOf(0) }
+                    androidx.compose.foundation.layout.Column {
+                        MenuItem(
+                            item = MenuItemUiState(
+                                label = "Overview",
+                                onClick = { clicks += 1 },
+                                icon = null,
+                                selected = false
+                            )
+                        )
+                        androidx.compose.material3.Text("Clicks: $clicks")
+                    }
+                }
+            }
+
+            onNodeWithText("Overview").assertIsDisplayed().performClick()
             onNodeWithText("Clicks: 1").assertIsDisplayed()
         }
     }
@@ -258,6 +301,51 @@ class NavigationComponentsTest {
     }
 
     @Test
+    fun `menu sidebar omits the menu title when header content owns the heading slot`() {
+        // Covers the Menu(title = if (headerContent == null) title else null) branch so navigation rows do not duplicate a hidden shell title.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MenuSidebar(
+                        title = "Hidden Shell Title",
+                        headerContent = { androidx.compose.material3.Text("Visible Shell Header") },
+                        items = listOf("Hardware" to {}),
+                        icons = listOf("🔧"),
+                        selectedIndex = 0
+                    )
+                }
+            }
+
+            onNodeWithText("Visible Shell Header").assertIsDisplayed()
+            onNodeWithText("Hardware").assertIsDisplayed()
+            onNodeWithText("Hidden Shell Title").assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun `menu sidebar shows custom header and divider without system hint when theme is unknown`() {
+        // Covers the expanded branch where systemModeLabel is null but headerContent is non-null, so the divider path still runs.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MenuSidebar(
+                        title = "Hidden Shell Title",
+                        headerContent = { androidx.compose.material3.Text("Brand Strip") },
+                        items = listOf("Hardware" to {}),
+                        isSystemDark = null
+                    )
+                }
+            }
+
+            onNodeWithText("Brand Strip").assertIsDisplayed()
+            onNodeWithText("Hardware").assertIsDisplayed()
+            onNodeWithText("System: Dark mode").assertDoesNotExist()
+            onNodeWithText("System: Light mode").assertDoesNotExist()
+            onNodeWithText("Hidden Shell Title").assertDoesNotExist()
+        }
+    }
+
+    @Test
     fun `menu sidebar supports controlled expansion custom header content and selected icons`() {
         // Covers the controlled shell-sidebar path so parent-owned expansion and custom header content route through Menu and MenuItem.
         runComposeUiTest {
@@ -285,6 +373,77 @@ class NavigationComponentsTest {
             onNodeWithText("Protocols").assertDoesNotExist()
             onNodeWithText("≡").assertIsDisplayed().performClick()
             onNodeWithText("Shell Header").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `menu maps items when icons list is shorter than item count`() {
+        // Covers the icon indexing path so trailing menu rows still render when callers omit optional icons.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Menu(
+                        title = "Nav",
+                        items = listOf(
+                            "Alpha" to {},
+                            "Beta" to {},
+                            "Gamma" to {}
+                        ),
+                        icons = listOf("🔤", "🔹")
+                    )
+                }
+            }
+
+            onNodeWithText("Nav").assertIsDisplayed()
+            onNodeWithText("Alpha").assertIsDisplayed()
+            onNodeWithText("Beta").assertIsDisplayed()
+            onNodeWithText("Gamma").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `menu sidebar keeps parent expanded true when expansion callback is omitted`() {
+        // Covers expanded != null with onExpandedChange == null so updateExpanded only mutates internal state while isExpanded stays pinned open.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MenuSidebar(
+                        title = "Pinned Open",
+                        items = listOf("Hardware" to {}),
+                        expanded = true,
+                        onExpandedChange = null
+                    )
+                }
+            }
+
+            onNodeWithText("Pinned Open").assertIsDisplayed()
+            onNodeWithText("≡").performClick()
+            onNodeWithText("Pinned Open").assertIsDisplayed()
+            onNodeWithText("Hardware").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `menu sidebar stays collapsed when pinned closed without an expansion callback`() {
+        // Covers expanded == false with onExpandedChange == null so internal toggles cannot override the forced collapsed width branch.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MenuSidebar(
+                        title = "Hidden While Collapsed",
+                        items = listOf("Hardware" to {}),
+                        expanded = false,
+                        onExpandedChange = null
+                    )
+                }
+            }
+
+            onNodeWithText("≡").assertIsDisplayed()
+            onNodeWithText("Hidden While Collapsed").assertDoesNotExist()
+            onNodeWithText("Hardware").assertDoesNotExist()
+            onNodeWithText("≡").performClick()
+            onNodeWithText("Hidden While Collapsed").assertDoesNotExist()
+            onNodeWithText("Hardware").assertDoesNotExist()
         }
     }
 

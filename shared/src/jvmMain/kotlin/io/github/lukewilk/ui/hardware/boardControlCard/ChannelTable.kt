@@ -30,11 +30,19 @@ internal data class ChannelTableRowUiState(
     val isConfigured: Boolean
 )
 
+internal enum class ChannelStatusTone {
+    CONFIGURED,
+    DEFAULT
+}
+
 internal fun channelTableRowUiState(index: Int, lastIndex: Int, status: String): ChannelTableRowUiState = ChannelTableRowUiState(
     usesEvenBackground = index % 2 == 0,
     showDivider = index < lastIndex,
     isConfigured = status == "Configured"
 )
+
+internal fun channelStatusTone(isConfigured: Boolean): ChannelStatusTone =
+    if (isConfigured) ChannelStatusTone.CONFIGURED else ChannelStatusTone.DEFAULT
 
 @Composable
 fun ChannelTable(
@@ -122,8 +130,8 @@ fun ChannelTable(
 
 @Composable
 private fun TableCell(
-    modifier: Modifier = Modifier,
-    contentAlignment: Alignment = Alignment.Center,
+    modifier: Modifier,
+    contentAlignment: Alignment,
     content: @Composable () -> Unit
 ) {
     Box(
@@ -138,12 +146,13 @@ private fun TableCell(
 
 @Composable
 private fun StatusBadge(status: String, isConfigured: Boolean) {
-    val containerColor = if (isConfigured) {
+    val tone = channelStatusTone(isConfigured)
+    val containerColor = if (tone == ChannelStatusTone.CONFIGURED) {
         MaterialTheme.colorScheme.tertiaryContainer
     } else {
         MaterialTheme.colorScheme.surface
     }
-    val contentColor = if (isConfigured) {
+    val contentColor = if (tone == ChannelStatusTone.CONFIGURED) {
         MaterialTheme.colorScheme.onTertiaryContainer
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant

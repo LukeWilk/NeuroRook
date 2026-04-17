@@ -32,6 +32,10 @@ internal fun menuSidebarSystemModeLabel(isSystemDark: Boolean?): String? = when 
 
 internal fun menuSidebarItemHasDivider(index: Int, lastIndex: Int): Boolean = index < lastIndex
 
+/** When a header slot is present, the nested [Menu] owns no duplicate title. */
+internal fun menuSidebarMenuTitleForMenu(hasHeaderContent: Boolean, title: String?): String? =
+    if (hasHeaderContent) null else title
+
 @Composable
 fun MenuSidebar(
     title: String? = null,
@@ -49,6 +53,7 @@ fun MenuSidebar(
     var internalExpanded by remember { mutableStateOf(true) }
     val isExpanded = expanded ?: internalExpanded
     val updateExpanded: (Boolean) -> Unit = onExpandedChange ?: { internalExpanded = it }
+    val hasHeaderContent = headerContent != null
 
     Row(modifier = modifier.fillMaxHeight()) {
         Surface(
@@ -81,12 +86,12 @@ fun MenuSidebar(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                         )
                     }
-                    if (headerContent != null) {
+                    if (hasHeaderContent) {
                         headerContent()
                         HorizontalDivider(thickness = 1.dp)
                     }
                     Menu(
-                        title = if (headerContent == null) title else null,
+                        title = menuSidebarMenuTitleForMenu(hasHeaderContent, title),
                         items = items,
                         icons = icons,
                         selectedIndex = selectedIndex

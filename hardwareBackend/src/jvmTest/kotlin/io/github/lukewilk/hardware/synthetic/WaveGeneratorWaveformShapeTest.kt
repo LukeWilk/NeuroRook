@@ -6,6 +6,17 @@ import kotlin.test.assertTrue
  * Waveform-shape and superposition tests for `WaveGenerator`.
  */
 internal class WaveGeneratorWaveformShapeTest : WaveGeneratorTestSupport() {
+    /** Verifies the JVM default-argument constructor bridge preserves the documented WaveSpec defaults. */
+    @Test
+    fun `wave spec default constructor uses the expected defaults`() {
+        val spec = WaveSpec()
+        assertEquals(false, spec.enabled)
+        assertEquals(WaveType.SINE, spec.type)
+        assertEquals(1.0, spec.amplitude)
+        assertEquals(1.0, spec.frequencyHz)
+        assertEquals(0.0, spec.phaseShiftRad)
+    }
+
     /** Verifies a basic sine-wave spec produces a non-zero signal with the requested sample count. */
     @Test
     fun `generate sample array produces a sine wave`() {
