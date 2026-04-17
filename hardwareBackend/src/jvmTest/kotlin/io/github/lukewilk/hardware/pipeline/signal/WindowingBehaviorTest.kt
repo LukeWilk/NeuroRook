@@ -25,6 +25,23 @@ class WindowingBehaviorTest {
         }
     }
 
+    /** Verifies the default createWindow overload matches the explicit HAMMING variant. */
+    @Test
+    fun `create window default overload matches hamming`() {
+        val explicit = createWindow(length = 8, type = WindowType.HAMMING)
+        val defaultFactory = Class.forName("io.github.lukewilk.hardware.pipeline.signal.WindowingKt")
+            .getDeclaredMethod(
+                "createWindow\$default",
+                Int::class.javaPrimitiveType,
+                WindowType::class.java,
+                Int::class.javaPrimitiveType,
+                Any::class.java
+            )
+        val defaulted = defaultFactory.invoke(null, 8, null, 2, null) as DoubleArray
+
+        assertTrue(defaulted.contentEquals(explicit), "Default window construction should use HAMMING")
+    }
+
     /** Verifies applying a window to an all-ones signal returns the window coefficients unchanged. */
     @Test
     fun `apply window on ones returns the window coefficients`() {

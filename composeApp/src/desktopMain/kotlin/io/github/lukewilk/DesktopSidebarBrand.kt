@@ -13,21 +13,27 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.loadSvgPainter
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import java.io.ByteArrayInputStream
 
 /**
  * Renders the desktop sidebar brand using the bundled NeuroRook logo with a text fallback when the asset is unavailable.
  */
+internal const val DESKTOP_SIDEBAR_LOGO_RESOURCE = "neuroRook.svg"
+private const val DESKTOP_SIDEBAR_FALLBACK_LABEL = "NeuroRook"
+
 @Composable
-fun DesktopSidebarBrand(modifier: Modifier = Modifier) {
+fun DesktopSidebarBrand(
+    modifier: Modifier = Modifier,
+    logoPainterProvider: @Composable () -> Painter? = { rememberDesktopSidebarLogo() }
+) {
     DesktopSidebarBrandContent(
-        logoPainter = rememberDesktopSidebarLogo(),
+        logoPainter = logoPainterProvider(),
         modifier = modifier
     )
 }
 
-/** Renders either the loaded desktop logo or the text fallback so tests can exercise both sidebar branding branches. */
 @Composable
 internal fun DesktopSidebarBrandContent(logoPainter: Painter?, modifier: Modifier = Modifier) {
     if (logoPainter != null) {
@@ -41,7 +47,7 @@ internal fun DesktopSidebarBrandContent(logoPainter: Painter?, modifier: Modifie
         )
     } else {
         Text(
-            text = "NeuroRook",
+            text = DESKTOP_SIDEBAR_FALLBACK_LABEL,
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
@@ -56,16 +62,26 @@ internal fun DesktopSidebarBrandContent(logoPainter: Painter?, modifier: Modifie
 @Composable
 private fun rememberDesktopSidebarLogo(): Painter? {
     val density = LocalDensity.current
-    val logoBytes = remember {
-        Thread.currentThread().contextClassLoader
-            ?.getResourceAsStream("neuroRook.svg")
-            ?.use { it.readBytes() }
-    }
-
-    return logoBytes?.let { bytes ->
-        runCatching { loadSvgPainter(ByteArrayInputStream(bytes), density) }.getOrNull()
+    return remember(density) {
+        loadDesktopSidebarLogoPainter(
+            bytes = readDesktopSidebarLogoBytes(Thread.currentThread().contextClassLoader),
+            density = density
+        )
     }
 }
 
+internal fun readDesktopSidebarResourceBytes(
+    classLoader: ClassLoader?,
+    resourcePath: String
+): ByteArray? =
+    classLoader
+        ?.getResourceAsStream(resourcePath)
+        ?.use { it.readBytes() }
 
+internal fun readDesktopSidebarLogoBytes(classLoader: ClassLoader?): ByteArray? =
+    readDesktopSidebarResourceBytes(classLoader, DESKTOP_SIDEBAR_LOGO_RESOURCE)
 
+internal fun loadDesktopSidebarLogoPainter(bytes: ByteArray?, density: Density): Painter? =
+    bytes?.let { payload ->
+        runCatching { loadSvgPainter(ByteArrayInputStream(payload), density) }.getOrNull()
+    }

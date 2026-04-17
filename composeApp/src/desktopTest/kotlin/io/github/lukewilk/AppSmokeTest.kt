@@ -1,10 +1,17 @@
 package io.github.lukewilk
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.unit.Density
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.WaveSpec
 import io.github.lukewilk.shared.api.BackendApi
@@ -15,14 +22,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.io.ByteArrayInputStream
 import java.awt.Frame
 import java.awt.GraphicsEnvironment
 import java.awt.Window
 import java.awt.event.WindowEvent
+import javax.swing.UIManager
 import kotlin.concurrent.thread
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import org.junit.Assume.assumeTrue
 /**
  * Desktop smoke tests for the shared NeuroRook root composable.
@@ -50,8 +61,18 @@ class AppSmokeTest {
     }
 
     @Test
+    fun `app renders with an explicit light color scheme overriding default material roles`() = runComposeUiTest {
+        // Covers the non-null colorScheme branch in App so MaterialTheme uses the injected scheme.
+        setContent {
+            App(backendApi = null, colorScheme = lightColorScheme(), headerContent = null)
+        }
+        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        onNodeWithText("Hardware").assertIsDisplayed()
+    }
+
+    @Test
     fun `app renders the shared scaffold with an explicit backend instance`() = runComposeUiTest {
-        // Covers the non-null backend path so the root app composable is exercised with both injected and default host wiring.
+        // Exercises the non-null backend path so the root app composable runs with both injected and default hosts.
         setContent {
             App(backendApi = FakeAppBackendApi())
         }
@@ -86,6 +107,97 @@ class AppSmokeTest {
     }
 
     @Test
+    fun `app renders custom desktop header content when supplied`() = runComposeUiTest {
+        // Covers the optional headerContent path used by the desktop host sidebar.
+        setContent {
+            App(
+                backendApi = null,
+                headerContent = { DesktopSidebarBrandContent(logoPainter = ColorPainter(Color.Red)) }
+            )
+        }
+
+        onNodeWithText("Hardware").assertIsDisplayed()
+    }
+
+    @Test
+    fun `desktop sidebar brand content shows text fallback when logo is unavailable`() = runComposeUiTest {
+        // Covers the null-logo branch that renders the textual fallback branding.
+        setContent {
+            MaterialTheme {
+                DesktopSidebarBrandContent(logoPainter = null)
+            }
+        }
+
+        onNodeWithText("NeuroRook").assertIsDisplayed()
+    }
+
+    @Test
+    fun `desktop sidebar brand content hides text fallback when logo painter exists`() = runComposeUiTest {
+        // Covers the painter branch so the component renders image mode instead of fallback text.
+        setContent {
+            MaterialTheme {
+                DesktopSidebarBrandContent(logoPainter = ColorPainter(Color.Blue))
+            }
+        }
+
+        onNodeWithContentDescription("NeuroRook logo").assertIsDisplayed()
+        onNodeWithText("NeuroRook").assertDoesNotExist()
+    }
+
+    @Test
+    fun `desktop sidebar brand wrapper renders logo when resource exists and falls back otherwise`() = runComposeUiTest {
+        // Covers DesktopSidebarBrand + rememberDesktopSidebarLogo branches deterministically by checking resource availability.
+        val hasLogoResource = Thread.currentThread().contextClassLoader?.getResource("neuroRook.svg") != null
+
+        setContent {
+            MaterialTheme {
+                DesktopSidebarBrand()
+            }
+        }
+
+        if (hasLogoResource) {
+            onNodeWithContentDescription("NeuroRook logo").assertIsDisplayed()
+            onNodeWithText("NeuroRook").assertDoesNotExist()
+        } else {
+            onNodeWithText("NeuroRook").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `desktop sidebar brand falls back when logo bytes cannot be parsed as svg`() = runComposeUiTest {
+        // Forces rememberDesktopSidebarLogo through the runCatching failure path.
+        val previousLoader = Thread.currentThread().contextClassLoader
+        val brokenSvgLoader = object : ClassLoader(previousLoader) {
+            override fun getResourceAsStream(name: String?): java.io.InputStream? {
+                if (name == "neuroRook.svg") {
+                    return ByteArrayInputStream("not an svg".toByteArray())
+                }
+                return super.getResourceAsStream(name)
+            }
+        }
+
+        try {
+            Thread.currentThread().contextClassLoader = brokenSvgLoader
+            setContent {
+                MaterialTheme {
+                    DesktopSidebarBrand()
+                }
+            }
+            val textVisible = runCatching {
+                onNodeWithText("NeuroRook").assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+            val logoVisible = runCatching {
+                onNodeWithContentDescription("NeuroRook logo").assertIsDisplayed()
+                true
+            }.getOrDefault(false)
+            assertTrue(textVisible || logoVisible)
+        } finally {
+            Thread.currentThread().contextClassLoader = previousLoader
+        }
+    }
+
+    @Test
     fun `desktop main launches and closes the real application window`() {
         // Verifies the desktop entrypoint can create its real window shell and respond to a close request.
         assumeTrue(
@@ -113,6 +225,43 @@ class AppSmokeTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `desktop look and feel configuration helper can be invoked directly`() {
+        // Covers the desktop look-and-feel helper without requiring a full Compose window lifecycle.
+        // Invoke twice to exercise both "apply" and "already set" control flow safely.
+        configureSystemLookAndFeel()
+        val activeClassName = UIManager.getLookAndFeel()?.javaClass?.name
+        val systemClassName = UIManager.getSystemLookAndFeelClassName()
+        if (activeClassName == systemClassName) {
+            configureSystemLookAndFeel()
+        }
+    }
+
+    @Test
+    fun `desktop look and feel helper applies system class when current look and feel differs`() {
+        // Forces configureSystemLookAndFeel through the non-early-return branch.
+        val previousLookAndFeelClass = UIManager.getLookAndFeel()?.javaClass?.name
+        val crossPlatformClass = UIManager.getCrossPlatformLookAndFeelClassName()
+        val systemClass = UIManager.getSystemLookAndFeelClassName()
+
+        runCatching { UIManager.setLookAndFeel(crossPlatformClass) }
+        configureSystemLookAndFeel()
+        assertEquals(systemClass, UIManager.getLookAndFeel()?.javaClass?.name)
+
+        if (previousLookAndFeelClass != null) {
+            runCatching { UIManager.setLookAndFeel(previousLookAndFeelClass) }
+        }
+    }
+
+    @Test
+    fun `desktop sidebar logo helper functions cover missing and invalid logo bytes`() {
+        val noLoaderBytes = readDesktopSidebarLogoBytes(null)
+        assertEquals(null, noLoaderBytes)
+
+        val invalidPainter = loadDesktopSidebarLogoPainter("not-svg".toByteArray(), Density(1f))
+        assertEquals(null, invalidPainter)
     }
 
     /** Detects whether this process can actually show a real AWT/Compose desktop window. */

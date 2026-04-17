@@ -7,6 +7,11 @@ import io.github.lukewilk.shared.api.BackendApi
 import io.github.lukewilk.ui.HardwareScreen
 import io.github.lukewilk.ui.MainScaffold
 
+internal typealias AppScaffoldRenderer = @Composable (
+    hardwareScreen: @Composable () -> Unit,
+    headerContent: (@Composable () -> Unit)?
+) -> Unit
+
 /**
  * Root NeuroRook application composable shared by desktop and Android hosts.
  */
@@ -14,15 +19,30 @@ import io.github.lukewilk.ui.MainScaffold
 fun App(
     backendApi: BackendApi? = null,
     colorScheme: ColorScheme? = null,
-    headerContent: (@Composable () -> Unit)? = null
+    headerContent: (@Composable () -> Unit)? = null,
+    renderScaffold: AppScaffoldRenderer? = null,
+    hardwareScreenProvider: (BackendApi?) -> (@Composable () -> Unit) = ::appHardwareScreen
 ) {
-    MaterialTheme(colorScheme = colorScheme ?: MaterialTheme.colorScheme) {
-        MainScaffold(
-            hardwareScreen = {
-                HardwareScreen(backendApi = backendApi)
-            },
-            headerContent = headerContent
-        )
+    val resolvedColorScheme = colorScheme ?: MaterialTheme.colorScheme
+    val hardwareScreen = hardwareScreenProvider(backendApi)
+    val scaffoldRenderer = renderScaffold ?: ::defaultAppScaffoldRenderer
+    MaterialTheme(colorScheme = resolvedColorScheme) {
+        scaffoldRenderer(hardwareScreen, headerContent)
     }
+}
+
+internal fun appHardwareScreen(backendApi: BackendApi?): @Composable () -> Unit = {
+    HardwareScreen(backendApi = backendApi)
+}
+
+@Composable
+internal fun defaultAppScaffoldRenderer(
+    hardwareScreen: @Composable () -> Unit,
+    headerContent: (@Composable () -> Unit)?
+) {
+    MainScaffold(
+        hardwareScreen = hardwareScreen,
+        headerContent = headerContent
+    )
 }
 

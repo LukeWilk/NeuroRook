@@ -7,12 +7,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * JVM unit tests for the extracted pure helper logic behind DeviceSelectionCard.
+ * JVM state tests for the pure DeviceSelectionCard logic.
  */
-class DeviceSelectionCardHelperTest {
+class DeviceSelectionCardStateTest {
     @Test
-    fun `device selection enablement helpers cover connected busy loading and allowed states`() {
-        // Verifies the extracted enablement predicates preserve the same UI affordance rules as the composable shell.
+    fun `device selection enablement logic covers connected busy loading and allowed states`() {
         val suggestions = listOf(SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB Adapter"))
 
         assertTrue(isBoardSelectionEnabled(isConnected = false, isBusy = false, canSelectBoard = true))
@@ -46,8 +45,7 @@ class DeviceSelectionCardHelperTest {
     }
 
     @Test
-    fun `serial suggestion descriptor helper prefers details then display name then blank`() {
-        // Covers the label-building fallback branch so serial suggestions keep a readable descriptor without duplicating the path.
+    fun `serial suggestion descriptor logic prefers details then display name then blank`() {
         val withDetails = SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB Adapter", details = "FTDI bridge")
         val withDisplayNameOnly = SerialPortSuggestion(path = "/dev/ttyUSB1", displayName = "Cyton Adapter")
         val pathOnly = SerialPortSuggestion(path = "/dev/ttyUSB2", displayName = "/dev/ttyUSB2")
@@ -60,8 +58,7 @@ class DeviceSelectionCardHelperTest {
     }
 
     @Test
-    fun `device selection helper texts cover selected index support copy refresh label and connection status`() {
-        // Verifies the extracted display helpers keep clamped selection, support-text visibility, refresh copy, and status labels deterministic.
+    fun `device selection state texts cover selected index support copy refresh label and connection status`() {
         val suggestions = listOf(
             SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB Adapter"),
             SerialPortSuggestion(path = "/dev/ttyUSB1", displayName = "Backup Adapter")
@@ -83,4 +80,3 @@ class DeviceSelectionCardHelperTest {
         assertEquals("No Device Connected", deviceConnectionStatusText(isConnected = false))
     }
 }
-

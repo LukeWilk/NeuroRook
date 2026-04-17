@@ -3,6 +3,16 @@ plugins {
     id("org.jetbrains.kotlinx.kover")
 }
 
+kover {
+    currentProject {
+        createVariant("coverage") {
+            add("jvm", optional = true)
+            add("desktop", optional = true)
+            add("debug", optional = true)
+        }
+    }
+}
+
 kotlin {
     jvm()
     listOf(
@@ -59,5 +69,6 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 // Force ByteBuddy experimental flag for JVM tests to support newer Java versions when Mockito inlines
 tasks.withType<Test>().configureEach {
     jvmArgs("-Dnet.bytebuddy.experimental=true")
+    environment("LOG_LEVEL", "DEBUG")
 }
 

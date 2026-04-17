@@ -9,26 +9,54 @@ plugins {
     id("org.jetbrains.kotlinx.kover") version "0.9.8"
 }
 
+kover {
+    currentProject {
+        createVariant("coverage") {
+            add("jvm", optional = true)
+            add("desktop", optional = true)
+            add("debug", optional = true)
+        }
+    }
+}
+
+tasks.register("coverageHtmlReport") {
+    group = "verification"
+    description = "Generate the aggregate Kover HTML report for the custom coverage variant."
+    dependsOn("koverHtmlReportCoverage")
+}
+
+tasks.register("coverageVerify") {
+    group = "verification"
+    description = "Run Kover verification against the custom coverage variant."
+    dependsOn("koverVerifyCoverage")
+}
+
+tasks.register("composeAppCoverageHtmlReport") {
+    group = "verification"
+    description = "Generate the composeApp Kover HTML report for the custom coverage variant."
+    dependsOn(":composeApp:koverHtmlReportCoverage")
+}
+
+tasks.register("composeAppCoverageVerify") {
+    group = "verification"
+    description = "Run Kover verification for composeApp against the custom coverage variant."
+    dependsOn(":composeApp:koverVerifyCoverage")
+}
+
+tasks.register("sharedCoverageHtmlReport") {
+    group = "verification"
+    description = "Generate the shared module Kover HTML report for the custom coverage variant."
+    dependsOn(":shared:koverHtmlReportCoverage")
+}
+
+tasks.register("sharedCoverageVerify") {
+    group = "verification"
+    description = "Run Kover verification for shared against the custom coverage variant."
+    dependsOn(":shared:koverVerifyCoverage")
+}
+
 // Set project version from gradle.properties (version key)
 version = findProperty("version") as String
-
-
-//kover {
-//    reports {
-//        filters {
-//            excludes {
-//                classes(
-//                    "io.github.lukewilk.hardware.MainKt",
-//                    "io.github.lukewilk.hardware.MainKt\$main\$1",
-//                    "neurorook.composeapp.generated.resources.ActualResourceCollectorsKt",
-//                    "neurorook.composeapp.generated.resources.Res"
-//                )
-//            }
-//        }
-//    }
-//}
-
-
 
 dependencies {
     listOf(

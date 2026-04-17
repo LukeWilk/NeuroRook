@@ -1,5 +1,9 @@
 package io.github.lukewilk.hardware.synthetic
 
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
+import co.touchlab.kermit.loggerConfigInit
+import co.touchlab.kermit.platformLogWriter
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.WaveSpec
 import io.github.lukewilk.shared.WaveType as SharedWaveType
@@ -117,6 +121,32 @@ internal class SyntheticDataGeneratorTest : SyntheticSignalTestSupport() {
         for (index in 0 until samplesPerBlock) concatenated[samplesPerBlock + index] = second[0][index]
 
         assertSamplesMatch(concatenated, combined[0])
+    }
+
+    /** Verifies the debug logging lambda in generate() is evaluated when the logger allows debug severity. */
+    @Test
+    fun `generate evaluates debug logging when configured logger allows it`() {
+        val originalLoggerFactory = SyntheticDataGenerator.loggerFactory
+        SyntheticDataGenerator.loggerFactory = {
+            Logger(
+                loggerConfigInit(
+                    platformLogWriter(),
+                    minSeverity = Severity.Debug
+                )
+            ).withTag("SyntheticDataGeneratorTest")
+        }
+
+        try {
+            val state = singleSineSyntheticState(channels = 1, samplingRateHz = 100, enabledChannels = listOf(0))
+            SyntheticDataGenerator.resetPhases()
+
+            val output = SyntheticDataGenerator.generate(state, 8)
+
+            assertEquals(1, output.size)
+            assertTrue(output[0].any { it != 0.0 })
+        } finally {
+            SyntheticDataGenerator.loggerFactory = originalLoggerFactory
+        }
     }
 }
 

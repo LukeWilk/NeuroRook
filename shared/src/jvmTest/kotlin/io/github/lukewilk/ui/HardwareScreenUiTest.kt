@@ -6,10 +6,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
@@ -51,6 +53,31 @@ class HardwareScreenUiTest {
     }
 
     @Test
+    fun `hardware screen shows generic serial guidance when suggestions exist but none are recommended`() {
+        // Covers serialPortSupportTextFor else branch: detected ports without a recommended pick still get actionable copy.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyS0", displayName = "Legacy", isRecommended = false),
+                SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB", isUsbDevice = true, isRecommended = false)
+            ),
+            hardwareState = HardwareState()
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            onNodeWithText("Choose any detected port or type a custom path.").assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun `hardware screen renders wide layout with backend driven serial suggestions and logs`() {
         // Exercises the wide layout branch together with successful board and serial-port loading.
         val backendApi = RecordingBackendApi(
@@ -79,6 +106,90 @@ class HardwareScreenUiTest {
             onNodeWithText("System Log").assertIsDisplayed()
             onNodeWithText("Connect").assertIsDisplayed()
         }
+    }
+
+    @Test
+    fun `hardware screen disables connect when backend returns no boards`() {
+        // Covers the no-board fallback path in the composed screen so connect remains guarded.
+        val backendApi = RecordingBackendApi(
+            boards = emptyList(),
+            serialSuggestions = emptyList(),
+            hardwareState = HardwareState()
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            onNodeWithText("Unable to load boards").assertIsDisplayed()
+            onNodeWithText("Connect").assertIsNotEnabled()
+        }
+    }
+
+    @Test
+    fun `hardware screen synthetic board shows no serial required support and disabled stream controls`() {
+        // Mirrors the screenshot state: synthetic board selected, no serial required text, and disconnected stream controls disabled.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD", "SYNTHETIC_BOARD"),
+            serialSuggestions = emptyList(),
+            hardwareState = HardwareState(connected = false, streaming = false, channels = 8)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            onNodeWithText("Synthetic boards do not require a serial port.").assertIsDisplayed()
+            onNodeWithText("No serial port required").assertIsDisplayed()
+            onNodeWithText("Synthetic Control").assertIsDisplayed()
+            onNodeWithText("Verify Channels").assertIsNotEnabled()
+            onNodeWithText("Start Stream").assertIsNotEnabled()
+            onNodeWithText("Stop Stream").assertIsNotEnabled()
+        }
+    }
+
+    @Test
+    fun `hardware screen compact layout updates serial guidance after changing boards`() {
+        // Covers the compact DeviceSelectionCard board-selection callback and reruns serial-port loading when selectedBoardId changes.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("SYNTHETIC_BOARD", "CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Cyton Adapter", isRecommended = true)
+            ),
+            hardwareState = HardwareState(channels = 2)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(800.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Synthetic").performClick()
+            onNodeWithText("Cyton").performClick()
+            waitForIdle()
+
+            onNodeWithText(
+                "A likely board connection was preselected for you. You can choose any detected port or type a custom path."
+            ).assertIsDisplayed()
+            onNodeWithText("Synthetic boards do not require a serial port.").assertDoesNotExist()
+        }
+
+        assertEquals(1, backendApi.serialSuggestionRequests)
     }
 
     @Test
@@ -158,6 +269,36 @@ class HardwareScreenUiTest {
     }
 
     @Test
+    fun `hardware screen compact layout starts streaming when connected`() {
+        // Exercises the compact BoxWithConstraints branch so startStreaming reaches the backend while narrow layouts stay covered.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Adapter", isRecommended = true)
+            ),
+            hardwareState = HardwareState(connected = true, streaming = false, channels = 2)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(800.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Start Stream").performScrollTo()
+            waitForIdle()
+            onNodeWithText("Start Stream").performClick()
+            waitForIdle()
+        }
+
+        assertEquals(1, backendApi.startStreamingCalls)
+    }
+
+    @Test
     fun `hardware screen wide layout starts streaming and toggles both channel columns`() {
         // Covers the backend-action lambdas for start-stream plus both enable/disable branches of channel and RLD toggles.
         val backendApi = RecordingBackendApi(
@@ -198,6 +339,104 @@ class HardwareScreenUiTest {
     }
 
     @Test
+    fun `hardware screen surfaces serial scan failures while boards remain selectable`() {
+        // Covers the LaunchedEffect serial-loader failure branch so the composed screen shows the manual-entry hint instead of silently dropping errors.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = emptyList(),
+            serialFailure = IllegalStateException("USB lookup blocked"),
+            hardwareState = HardwareState(channels = 1)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            onNodeWithText("Could not scan serial devices: USB lookup blocked. You can still enter a path manually.", substring = true)
+                .assertIsDisplayed()
+            onNodeWithText("Device Selection").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `hardware screen compact layout surfaces serial scan failures`() {
+        // Mirrors the wide-layout serial failure test under the narrow maxWidth branch so both layout shells exercise the same error copy path.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = emptyList(),
+            serialFailure = IllegalStateException("USB lookup blocked"),
+            hardwareState = HardwareState(channels = 1)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(800.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Could not scan serial devices: USB lookup blocked. You can still enter a path manually.", substring = true)
+                .assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `hardware screen shows board catalog error when getBrainflowBoards throws`() {
+        // Covers loadBoardState onFailure inside the board LaunchedEffect so the composed screen surfaces backend exceptions like the helper tests.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = emptyList(),
+            hardwareState = HardwareState(),
+            boardLoadFailure = IllegalStateException("Board service offline")
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Unable to load boards").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `hardware screen treats no board placeholder rows as an empty board catalog`() {
+        // Covers loadBoardState filtering so a NO_BOARD-only response collapses to the same empty-board UX as a silent backend failure.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("NO_BOARD"),
+            serialSuggestions = emptyList(),
+            hardwareState = HardwareState()
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Unable to load boards").assertIsDisplayed()
+            onNodeWithText("Connect").assertIsNotEnabled()
+        }
+    }
+
+    @Test
     fun `hardware screen wide layout lets users edit and reselect serial ports before connecting`() {
         // Covers the duplicated wide-layout serial editing and suggestion-selection branches before issuing a connect action.
         val backendApi = RecordingBackendApi(
@@ -235,6 +474,163 @@ class HardwareScreenUiTest {
 
         assertEquals(listOf(ConnectCall("CYTON_BOARD", "/dev/ttyUSB0", 0)), backendApi.connectCalls)
     }
+
+    @Test
+    fun `hardware screen wide layout updates serial guidance after changing boards`() {
+        // Covers the wide DeviceSelectionCard board-selection callback and verifies board changes trigger a fresh serial-port load.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("SYNTHETIC_BOARD", "CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Cyton Adapter", isRecommended = true)
+            ),
+            hardwareState = HardwareState(channels = 1)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Synthetic").performClick()
+            onNodeWithText("Cyton").performClick()
+            waitForIdle()
+
+            onNodeWithText(
+                "A likely board connection was preselected for you. You can choose any detected port or type a custom path."
+            ).assertIsDisplayed()
+            onNodeWithText("Synthetic boards do not require a serial port.").assertDoesNotExist()
+        }
+
+        assertEquals(1, backendApi.serialSuggestionRequests)
+    }
+
+    @Test
+    fun `hardware screen uses compact column layout when max width is just below nine hundred dp`() {
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Adapter", isRecommended = true)
+            ),
+            hardwareState = HardwareState(channels = 1)
+        )
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(899.dp, 900.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+            waitForIdle()
+            onNodeWithText("Device Selection").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `hardware screen uses wide row layout when max width reaches nine hundred dp`() {
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Adapter", isRecommended = true)
+            ),
+            hardwareState = HardwareState(channels = 1)
+        )
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(900.dp, 900.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+            waitForIdle()
+            onNodeWithText("Device Selection").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `hardware screen compact layout forwards verify channels while connected`() {
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Adapter", isRecommended = true)
+            ),
+            hardwareState = HardwareState(connected = true, streaming = false, channels = 1)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(800.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Verify Channels").performScrollTo().performClick()
+            waitForIdle()
+        }
+
+        assertEquals(1, backendApi.verifyCalls)
+    }
+
+    @Test
+    fun `hardware screen compact layout shows synthetic serial guidance when synthetic board is default`() {
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD", "SYNTHETIC_BOARD"),
+            serialSuggestions = emptyList(),
+            hardwareState = HardwareState(connected = false, streaming = false, channels = 2)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(800.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onNodeWithText("Synthetic boards do not require a serial port.").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `hardware screen connect passes zero seconds when timeout field is not numeric`() {
+        // Exercises connectRequestFor(timeout.toIntOrNull() ?: 0) through the composed wide layout path.
+        val backendApi = RecordingBackendApi(
+            boards = listOf("CYTON_BOARD"),
+            serialSuggestions = listOf(
+                SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Adapter", isRecommended = true)
+            ),
+            hardwareState = HardwareState(channels = 1)
+        )
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(1200.dp, 1200.dp)) {
+                        HardwareScreen(backendApi = backendApi)
+                    }
+                }
+            }
+
+            waitForIdle()
+            onAllNodes(hasSetTextAction())[1].performTextClearance()
+            onAllNodes(hasSetTextAction())[1].performTextInput("not-a-number")
+            onNodeWithText("Connect").performClick()
+            waitForIdle()
+        }
+
+        assertEquals(listOf(ConnectCall("CYTON_BOARD", "/dev/ttyACM0", 0)), backendApi.connectCalls)
+    }
 }
 
 /** Records the board, serial port, and timeout supplied to a HardwareScreen connect action. */
@@ -250,6 +646,8 @@ private data class ConnectCall(
 private class RecordingBackendApi(
     private val boards: List<String>,
     private val serialSuggestions: List<SerialPortSuggestion>,
+    private val serialFailure: Throwable? = null,
+    private val boardLoadFailure: Throwable? = null,
     hardwareState: HardwareState = HardwareState(),
     logs: List<SystemLogEntry> = emptyList()
 ) : BackendApi {
@@ -333,9 +731,13 @@ private class RecordingBackendApi(
     }
     override suspend fun setSamplingRateHz(rate: Int): Boolean = true
     override fun getState(): HardwareState = hardwareStateFlow.value
-    override fun getBrainflowBoards(): List<String> = boards
+    override fun getBrainflowBoards(): List<String> {
+        boardLoadFailure?.let { throw it }
+        return boards
+    }
     override fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
         serialSuggestionRequests += 1
+        serialFailure?.let { throw it }
         return serialSuggestions
     }
     override val hardwareStateFlow: StateFlow<HardwareState> = mutableHardwareStateFlow

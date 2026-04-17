@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.api.BackendApi
@@ -168,7 +169,7 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val scrollState = rememberScrollState()
-        if (maxWidth < 900.dp) {
+        if (useCompactHardwareLayout(maxWidth)) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(compactSpacing),
                 modifier = Modifier
@@ -333,6 +334,9 @@ internal data class HardwareScreenDisplayState(
     val serialPortSupportText: String,
     val channels: List<ChannelState>
 )
+
+internal fun useCompactHardwareLayout(maxWidth: Dp, compactBreakpoint: Dp = 900.dp): Boolean =
+    maxWidth < compactBreakpoint
 
 internal fun hardwareScreenDisplayState(
     backendApiAvailable: Boolean,

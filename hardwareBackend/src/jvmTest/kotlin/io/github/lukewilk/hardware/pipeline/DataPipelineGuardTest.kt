@@ -8,11 +8,10 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * Direct helper-branch tests for extracted `DataPipeline` utilities.
+ * Direct branch tests for `DataPipeline` utility logic.
  */
-class DataPipelineHelperTest {
+class DataPipelineGuardTest {
 
-    /** Verifies the filter-config helper logs the first change, skips identical configs, and logs real changes. */
     @Test
     fun `should log filter config change covers all branches`() {
         val config = FilterConfig(bandpass = null, bandstopFilters = emptyList())
@@ -26,7 +25,6 @@ class DataPipelineHelperTest {
         assertTrue(shouldLogFilterConfigChange(false, changedConfig, config))
     }
 
-    /** Verifies the sampling-rate helper covers both explicit and fallback rates. */
     @Test
     fun `resolve pipeline sampling rate covers explicit and fallback values`() {
         assertEquals(500.0, resolvePipelineSamplingRate(500))
@@ -34,7 +32,6 @@ class DataPipelineHelperTest {
         assertEquals(250.0, resolvePipelineSamplingRate(-5))
     }
 
-    /** Verifies the failure rethrow helper is a no-op for null and propagates non-null failures. */
     @Test
     fun `rethrow pipeline failure covers null and non null failures`() {
         rethrowPipelineFailure(null)
@@ -46,4 +43,3 @@ class DataPipelineHelperTest {
         assertEquals("boom", failure.message)
     }
 }
-

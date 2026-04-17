@@ -83,6 +83,43 @@ internal class SerialPortDiscoveryRankingTest : SerialPortDiscoveryTestSupport()
     }
 
     @Test
+    fun `serial port descriptor defaults system fields to documented values`() {
+        val constructor = SerialPortDescriptor::class.java.getDeclaredConstructor(
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            String::class.java,
+            Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType,
+            Boolean::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType,
+            Class.forName("kotlin.jvm.internal.DefaultConstructorMarker")
+        )
+        val descriptor = constructor.newInstance(
+            "/dev/default",
+            "ignored-system",
+            "ignored-display",
+            "ignored-description",
+            "ignored-location",
+            1234,
+            5678,
+            true,
+            254,
+            null
+        ) as SerialPortDescriptor
+
+        assertEquals("/dev/default", descriptor.path)
+        assertEquals("/dev/default", descriptor.systemName)
+        assertEquals("", descriptor.displayName)
+        assertEquals("", descriptor.description)
+        assertEquals("", descriptor.location)
+        assertEquals(-1, descriptor.vendorId)
+        assertEquals(-1, descriptor.productId)
+        assertFalse(descriptor.isOpen)
+    }
+
+    @Test
     fun `rank serial port suggestions recognizes supported board keyword families`() {
         val scenarios = listOf(
             "GANGLION_BOARD" to descriptor(path = "/dev/ttyS10", displayName = "Ganglion Adapter", description = "Ganglion Adapter", location = "rack-1", vendorId = -1, productId = -1),

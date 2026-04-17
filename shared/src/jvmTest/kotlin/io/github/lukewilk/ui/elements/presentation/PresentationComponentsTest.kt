@@ -1,6 +1,7 @@
 package io.github.lukewilk.ui.elements.presentation
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -163,6 +164,111 @@ class PresentationComponentsTest {
             onNodeWithText("Only action").assertIsDisplayed()
             onNodeWithText("Primary").assertIsDisplayed()
             onNodeWithText("Secondary").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `action button row accepts an empty button list without rendering actions`() {
+        // Covers the empty forEach path in ActionButtonRow.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    androidx.compose.foundation.layout.Column {
+                        ActionButtonRow(buttons = emptyList())
+                        androidx.compose.material3.Text("Sentinel")
+                    }
+                }
+            }
+
+            onNodeWithText("Sentinel").assertIsDisplayed()
+            onNodeWithText("Primary action").assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun `table header row applies weighted cells when fewer custom modifiers than columns`() {
+        // Verifies trailing columns fall back to the default weighted layout when no custom cell modifier is supplied.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    androidx.compose.foundation.layout.Column {
+                        TableHeaderRow(
+                            headers = listOf("Alpha", "Beta", "Gamma"),
+                            cellModifiers = listOf(Modifier.width(120.dp))
+                        )
+                    }
+                }
+            }
+
+            onNodeWithText("Alpha").assertIsDisplayed()
+            onNodeWithText("Beta").assertIsDisplayed()
+            onNodeWithText("Gamma").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `table header row handles empty headers and identity weighted modifiers`() {
+        // Verifies the row handles both empty headers and the bare Modifier sentinel gracefully.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    androidx.compose.foundation.layout.Column {
+                        TableHeaderRow(headers = emptyList())
+                        TableHeaderRow(
+                            headers = listOf("Alpha", "Beta"),
+                            cellModifiers = listOf(Modifier, Modifier.padding(horizontal = 2.dp))
+                        )
+                    }
+                }
+            }
+
+            onNodeWithText("Alpha").assertIsDisplayed()
+            onNodeWithText("Beta").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `table header row cycles weighted custom and default modifiers across four columns`() {
+        // Exercises repeated forEachIndexed branches so null trailing modifiers and custom widths share coverage with the default-parameter modifier chain.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    TableHeaderRow(
+                        headers = listOf("A", "B", "C", "D"),
+                        cellModifiers = listOf(
+                            Modifier.width(40.dp),
+                            Modifier,
+                            Modifier.padding(horizontal = 1.dp),
+                            Modifier.width(52.dp)
+                        )
+                    )
+                }
+            }
+
+            onNodeWithText("A").assertIsDisplayed()
+            onNodeWithText("B").assertIsDisplayed()
+            onNodeWithText("C").assertIsDisplayed()
+            onNodeWithText("D").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `panel card applies default elevation and honors custom container color`() {
+        // Covers CardDefaults branches by composing PanelCard with and without a custom surface color.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    androidx.compose.foundation.layout.Column {
+                        PanelCard { androidx.compose.material3.Text("Default surface panel") }
+                        PanelCard(containerColor = Color(0.2f, 0.3f, 0.4f, 1f)) {
+                            androidx.compose.material3.Text("Tinted panel")
+                        }
+                    }
+                }
+            }
+
+            onNodeWithText("Default surface panel").assertIsDisplayed()
+            onNodeWithText("Tinted panel").assertIsDisplayed()
         }
     }
 }

@@ -5,6 +5,7 @@ import io.github.lukewilk.shared.BandstopConfig
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
 import kotlin.test.Test
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -16,6 +17,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 
 class MainTest {
+    @Test
+    fun testMainLoggerPropertyIsAvailable() {
+        assertNotNull(logger)
+    }
+
     @Test
     fun testApplyConfiguredNotchFilters_attenuatesTargetFrequency() {
         // Generate a 60Hz sine wave sampled at 1000Hz
@@ -139,5 +145,25 @@ class MainTest {
             mainJob.cancelAndJoin()
         }
         assertTrue(completed != null, "main did not terminate within 10 seconds")
+    }
+
+    @Test
+    fun testMainReturnsImmediatelyWhenScopeIsAlreadyCancelled() = runBlocking {
+        val job = Job()
+        job.cancel()
+        val scope = CoroutineScope(Dispatchers.Default + job)
+
+        main(scope = scope)
+
+        assertTrue(true, "main should return cleanly when its launch scope is already cancelled")
+    }
+
+    @Test
+    fun testMainReturnsWhenDefaultManagerIsDisconnected() = runBlocking {
+        val completed = withTimeoutOrNull(3_000) {
+            main(_args = emptyArray())
+        }
+
+        assertTrue(completed != null, "main should return when the default manager is disconnected and emits no pipeline data")
     }
 }

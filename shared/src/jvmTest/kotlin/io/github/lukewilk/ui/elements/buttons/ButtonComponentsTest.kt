@@ -57,5 +57,27 @@ class ButtonComponentsTest {
             onNodeWithText("Stop session").assertIsNotEnabled()
         }
     }
+
+    @Test
+    fun `secondary button uses default enabled state and forwards clicks`() {
+        // Exercises the default-parameter path so the enabled=true branch is credited alongside the explicit disabled case.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    var clicks by remember { mutableIntStateOf(0) }
+                    androidx.compose.foundation.layout.Column {
+                        SecondaryButton(
+                            onClick = { clicks += 1 },
+                            text = "Resume session"
+                        )
+                        androidx.compose.material3.Text("Clicks: $clicks")
+                    }
+                }
+            }
+
+            onNodeWithText("Resume session").assertIsDisplayed().performClick()
+            onNodeWithText("Clicks: 1").assertIsDisplayed()
+        }
+    }
 }
 

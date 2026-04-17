@@ -6,7 +6,9 @@ import co.touchlab.kermit.Logger
 import io.github.lukewilk.shared.logging.LoggerProvider
 
 object SyntheticDataGenerator {
-    private val logger = LoggerProvider.getLogger("SyntheticDataGenerator")
+    internal var loggerFactory: () -> Logger = { LoggerProvider.getLogger("SyntheticDataGenerator") }
+    private val logger: Logger
+        get() = loggerFactory()
 
     // keep phase accumulator per wave index for continuity across calls
     private val phaseAccumulators = mutableMapOf<Int, Double>()

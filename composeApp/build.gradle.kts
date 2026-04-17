@@ -6,6 +6,16 @@ plugins {
     id("org.jetbrains.kotlinx.kover")
 }
 
+kover {
+    currentProject {
+        createVariant("coverage") {
+            add("jvm", optional = true)
+            add("desktop", optional = true)
+            add("debug", optional = true)
+        }
+    }
+}
+
 kotlin {
     android {
         namespace = "io.github.lukewilk.composeapp"
@@ -58,4 +68,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     }
 }
 
+tasks.withType<Test>().configureEach {
+    environment("LOG_LEVEL", "DEBUG")
+}
 

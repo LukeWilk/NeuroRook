@@ -4,6 +4,16 @@ plugins {
     id("org.jetbrains.kotlinx.kover")
 }
 
+kover {
+    currentProject {
+        createVariant("coverage") {
+            add("jvm", optional = true)
+            add("desktop", optional = true)
+            add("debug", optional = true)
+        }
+    }
+}
+
 android {
     namespace = "io.github.lukewilk"
     compileSdk = 36

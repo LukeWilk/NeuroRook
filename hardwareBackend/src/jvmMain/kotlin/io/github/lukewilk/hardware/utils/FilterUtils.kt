@@ -6,8 +6,7 @@ import io.github.lukewilk.hardware.pipeline.signal.applyNotchFilter
 
 /**
  * Applies all configured notch (band-stop) filters to the signal as in the main pipeline.
- * Used for unit testing to ensure coverage of the notch filter logic.
- * Accepts BandstopConfig from shared config for test compatibility.
+ * Accepts shared [BandstopConfig] values so callers can reuse the same configuration model across modules.
  */
 fun applyConfiguredNotchFilters(
     signal: DoubleArray,

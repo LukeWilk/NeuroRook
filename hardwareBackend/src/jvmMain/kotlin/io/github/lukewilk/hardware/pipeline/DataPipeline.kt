@@ -54,7 +54,7 @@ suspend fun startDataPipeline(
                 logger.e(e) { "Failed to register streaming job: ${e.message}" }
             }
             // React to filter config changes for logging/debugging
-            launch {
+            val filterConfigLoggingJob = launch {
                 var isFirstConfig = true
                 var previousConfig = stateStore.get().filterConfig
                 stateStore.state.collect { currentState ->
@@ -71,70 +71,74 @@ suspend fun startDataPipeline(
             val rawFlow = acquisition.streamRawFrames()
             // Exponential moving average for band power smoothing
             val bandEma = mutableMapOf<String, ExponentialMovingAverage>()
-            // Buffer and process each frame
-            buffer(
-                inputFlow = rawFlow,
-                stateStore = stateStore
-            ) { frame ->
-                logger.d { "Buffer received frame: channel=${frame.channel}, data.size=${frame.data.size}" }
-                val st = stateStore.get()
-                val samplingRate = resolvePipelineSamplingRate(st.samplingRateHz)
-                // High-pass filter
-                var sig = applyHighPassFilter(
-                    signal = frame.data.copyOf(),
-                    config = HighPassConfig(cutoffHz = 0.5, order = 2, samplingRateHz = samplingRate)
-                )
-                // Notch (bandstop) filters
-                if (st.filterConfig.bandstopFilters.isNotEmpty()) {
-                    st.filterConfig.bandstopFilters.forEach { bs ->
-                        val config = NotchFilterConfig(
-                            centerHz = (bs.startFreq + bs.stopFreq) / 2.0,
-                            bandwidthHz = (bs.stopFreq - bs.startFreq).coerceAtLeast(0.5),
-                            order = bs.order.coerceAtLeast(1),
-                            samplingRateHz = samplingRate
-                        )
-                        sig = applyNotchFilter(signal = sig, config = config)
+            try {
+                // Buffer and process each frame
+                buffer(
+                    inputFlow = rawFlow,
+                    stateStore = stateStore
+                ) { frame ->
+                    logger.d { "Buffer received frame: channel=${frame.channel}, data.size=${frame.data.size}" }
+                    val st = stateStore.get()
+                    val samplingRate = resolvePipelineSamplingRate(st.samplingRateHz)
+                    // High-pass filter
+                    var sig = applyHighPassFilter(
+                        signal = frame.data.copyOf(),
+                        config = HighPassConfig(cutoffHz = 0.5, order = 2, samplingRateHz = samplingRate)
+                    )
+                    // Notch (bandstop) filters
+                    if (st.filterConfig.bandstopFilters.isNotEmpty()) {
+                        st.filterConfig.bandstopFilters.forEach { bs ->
+                            val config = NotchFilterConfig(
+                                centerHz = (bs.startFreq + bs.stopFreq) / 2.0,
+                                bandwidthHz = (bs.stopFreq - bs.startFreq).coerceAtLeast(0.5),
+                                order = bs.order.coerceAtLeast(1),
+                                samplingRateHz = samplingRate
+                            )
+                            sig = applyNotchFilter(signal = sig, config = config)
+                        }
                     }
-                }
-                // Bandpass filter
-                st.filterConfig.bandpass?.let { bp ->
-                    sig = applyBandpassFilter(
-                        signal = sig,
-                        config = BandpassFilterConfig(
-                            lowCutHz = bp.lowCut,
-                            highCutHz = bp.highCut,
-                            order = bp.order.coerceAtLeast(1),
-                            samplingRateHz = samplingRate
+                    // Bandpass filter
+                    st.filterConfig.bandpass?.let { bp ->
+                        sig = applyBandpassFilter(
+                            signal = sig,
+                            config = BandpassFilterConfig(
+                                lowCutHz = bp.lowCut,
+                                highCutHz = bp.highCut,
+                                order = bp.order.coerceAtLeast(1),
+                                samplingRateHz = samplingRate
+                            )
+                        )
+                    }
+                    // Windowing
+                    val windowType = WindowType.HANN
+                    val windowed = applyWindow(sig, windowType)
+                    // Power spectral density (PSD) via Welch's method
+                    val psd = computeWelchPSD(
+                        windowedSignal = windowed,
+                        config = WelchConfig(
+                            samplingRateHz = samplingRate,
+                            windowType = windowType,
+                            padToNextPowerOfTwo = true
                         )
                     )
+                    // Compute and smooth band powers
+                    val smoothedBandPowers = st.bands.map { band ->
+                        val rawPower = bandPower(psd, band.lowHz, band.highHz)
+                        val ema = bandEma.getOrPut(band.name) { ExponentialMovingAverage(alpha = 0.3) }
+                        BandPower(band.name, ema.update(rawPower))
+                    }
+                    val bandPowerSummary =
+                        "BandPowers(channel=${frame.channel}): " +
+                            smoothedBandPowers.joinToString(", ") { (name, power) -> "$name=${"%.4f".format(power)}" }
+                    // Invoke callbacks for downstream consumers (API, UI, etc.)
+                    logger.d { "Invoking pipeline callbacks for channel ${frame.channel}" }
+                    onFiltered?.invoke(windowed)
+                    onBandPowers?.invoke(smoothedBandPowers)
+                    onFFTResult?.invoke(psd)
+                    logger.d { bandPowerSummary }
                 }
-                // Windowing
-                val windowType = WindowType.HANN
-                val windowed = applyWindow(sig, windowType)
-                // Power spectral density (PSD) via Welch's method
-                val psd = computeWelchPSD(
-                    windowedSignal = windowed,
-                    config = WelchConfig(
-                        samplingRateHz = samplingRate,
-                        windowType = windowType,
-                        padToNextPowerOfTwo = true
-                    )
-                )
-                // Compute and smooth band powers
-                val smoothedBandPowers = st.bands.map { band ->
-                    val rawPower = bandPower(psd, band.lowHz, band.highHz)
-                    val ema = bandEma.getOrPut(band.name) { ExponentialMovingAverage(alpha = 0.3) }
-                    BandPower(band.name, ema.update(rawPower))
-                }
-                val bandPowerSummary =
-                    "BandPowers(channel=${frame.channel}): " +
-                        smoothedBandPowers.joinToString(", ") { (name, power) -> "$name=${"%.4f".format(power)}" }
-                // Invoke callbacks for downstream consumers (API, UI, etc.)
-                logger.d { "Invoking pipeline callbacks for channel ${frame.channel}" }
-                onFiltered?.invoke(windowed)
-                onBandPowers?.invoke(smoothedBandPowers)
-                onFFTResult?.invoke(psd)
-                logger.d { bandPowerSummary }
+            } finally {
+                filterConfigLoggingJob.cancel()
             }
         }
     } catch (t: Throwable) {

@@ -9,10 +9,11 @@ import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
- * JVM coverage tests for logger configuration lookup.
+ * JVM tests for logger configuration lookup.
  */
 class LoggerProviderJvmTest {
     @Test
@@ -43,11 +44,14 @@ class LoggerProviderJvmTest {
     }
 
     @Test
-    fun `read log level wrapper uses the instrumented worker directory`() {
-        // Covers the actual JVM wrapper in-process because subprocess execution does not contribute to the parent Kover session.
+    fun `read log level wrapper uses the instrumented worker directory while respecting process env precedence`() {
+        // Exercises the actual JVM wrapper in-process and verifies it stays aligned with the same env-over-file precedence as the file helper.
         withProcessWorkingDirectoryConfig {
             writeText("LOG_LEVEL= trace \n")
-            assertEquals("trace", readLogLevelFromConfig())
+            assertEquals(
+                readLogLevelFromConfigFile(toFile(), envLogLevel = System.getenv("LOG_LEVEL")),
+                readLogLevelFromConfig()
+            )
         }
     }
 
@@ -58,6 +62,14 @@ class LoggerProviderJvmTest {
             resolve("NeuroRook.conf").writeText("LOG_LEVEL=NOT_A_REAL_LEVEL\n")
             assertEquals("ok", runProbe(this, mode = "logger"))
         }
+    }
+
+    @Test
+    fun `logger provider default tag bridge creates a logger`() {
+        // Targets the JVM default-argument bridge so Kover credits LoggerProvider.getLogger$default.
+        val logger: Logger = LoggerProvider.getLogger()
+        logger.i { "Default logger initialized" }
+        assertNotNull(logger)
     }
 
     /**
@@ -116,7 +128,7 @@ class LoggerProviderJvmTest {
     }
 
     private companion object {
-        /** Serializes mutations to the shared worker-directory config file used by the in-process wrapper coverage test. */
+        /** Serializes mutations to the shared worker-directory config file used by the in-process wrapper test. */
         val processWorkingDirectoryConfigLock = Any()
     }
 }

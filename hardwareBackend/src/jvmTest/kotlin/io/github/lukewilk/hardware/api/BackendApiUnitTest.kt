@@ -131,6 +131,16 @@ class BackendApiUnitTest : BackendApiTestSupport() {
         assertFalse(api.hardwareStateFlow.value.connected)
         assertSystemLogContains(SystemLogSeverity.INFO, "Disconnected from board")
     }
+    /** Verifies explicitly selecting the sentinel board avoids the unknown-name warning path. */
+    @Test
+    fun `connecting canonical no board skips unknown board warning`() = runBlocking {
+        api.connect("NO_BOARD")
+        assertFalse(
+            api.systemLogFlow.value.any { it.message.contains("is unknown") },
+            "Expected canonical NO_BOARD selection to skip the unknown-board warning branch."
+        )
+    }
+
     /** Verifies unknown board names warn the caller before falling back to `NO_BOARD`. */
     @Test
     fun `connecting an unknown board name warns before falling back`() = runBlocking {

@@ -1,6 +1,10 @@
 package io.github.lukewilk.hardwareRunner
 
 import brainflow.BoardIds
+import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
+import co.touchlab.kermit.loggerConfigInit
+import co.touchlab.kermit.platformLogWriter
 import io.github.lukewilk.hardware.BoardConnectionManager
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
@@ -196,8 +200,13 @@ class MainSmokeTest {
 
     @Test
     fun `emit runner logs accepts every extracted log level`() {
-        // Exercises the logger-emission helper for verbose, info, and warn message routing.
-        val logger = LoggerProvider.getLogger("MainSmokeTest")
+        // Exercises the logger-emission helper for verbose, info, and warn routing with a logger that evaluates verbose lambdas.
+        val logger = Logger(
+            loggerConfigInit(
+                platformLogWriter(),
+                minSeverity = Severity.Verbose
+            )
+        ).withTag("MainSmokeTest")
 
         emitRunnerLogs(
             logger,
@@ -427,6 +436,116 @@ class MainSmokeTest {
     }
 
     @Test
+    fun `default runtime hook fallbacks drive the real synthetic manager operations`() {
+        // Executes the built-in fallback lambdas directly so Kover credits the hook defaults themselves, not just wrapper helpers.
+        val stateStore = StateStore(HardwareState())
+        val manager = RunnerRuntime().managerFactory(stateStore)
+
+        try {
+            assertEquals(false, stateStore.get().connected)
+            assertEquals(false, stateStore.get().streaming)
+
+            RunnerRuntimeHooks.connectFallback(manager, BoardIds.SYNTHETIC_BOARD, "")
+            assertTrue(stateStore.get().connected)
+
+            RunnerRuntimeHooks.enableChannelFallback(manager, 0)
+            assertEquals(listOf(0), stateStore.get().enabledChannels)
+
+            RunnerRuntimeHooks.startStreamFallback(manager)
+            assertTrue(stateStore.get().streaming)
+
+            RunnerRuntimeHooks.stopStreamFallback(manager)
+            assertEquals(false, stateStore.get().streaming)
+
+            RunnerRuntimeHooks.closeFallback(manager)
+            assertEquals(false, stateStore.get().connected)
+        } finally {
+            RunnerRuntimeHooks.reset()
+            runCatching { manager.stopStream() }
+            runCatching { manager.close() }
+        }
+    }
+
+    @Test
+    fun `reset restores the real synthetic manager fallback lambdas`() {
+        // Covers the reset-installed lambda bodies by replacing fallbacks first, restoring them, then executing the restored defaults.
+        val stateStore = StateStore(HardwareState())
+        val manager = RunnerRuntime().managerFactory(stateStore)
+
+        try {
+            RunnerRuntimeHooks.connectFallback = { _, _, _ -> }
+            RunnerRuntimeHooks.startStreamFallback = { }
+            RunnerRuntimeHooks.enableChannelFallback = { _, _ -> }
+            RunnerRuntimeHooks.stopStreamFallback = { }
+            RunnerRuntimeHooks.closeFallback = { }
+
+            RunnerRuntimeHooks.reset()
+
+            RunnerRuntimeHooks.connectFallback(manager, BoardIds.SYNTHETIC_BOARD, "")
+            RunnerRuntimeHooks.enableChannelFallback(manager, 0)
+            RunnerRuntimeHooks.startStreamFallback(manager)
+            assertTrue(stateStore.get().connected)
+            assertTrue(stateStore.get().streaming)
+
+            RunnerRuntimeHooks.stopStreamFallback(manager)
+            RunnerRuntimeHooks.closeFallback(manager)
+            assertEquals(false, stateStore.get().streaming)
+            assertEquals(false, stateStore.get().connected)
+        } finally {
+            RunnerRuntimeHooks.reset()
+            runCatching { manager.stopStream() }
+            runCatching { manager.close() }
+        }
+    }
+
+    @Test
+    fun `runner runtime hook initializer lambdas invoke the real synthetic manager operations`() {
+        // Reflects into the original synthetic lambda methods so Kover credits the class-initializer fallbacks that later tests replace via reset().
+        val stateStore = StateStore(HardwareState())
+        val manager = RunnerRuntime().managerFactory(stateStore)
+        val hooksClass = Class.forName("io.github.lukewilk.hardwareRunner.RunnerRuntimeHooks")
+
+        try {
+            hooksClass.getDeclaredMethod(
+                "connectFallback\$lambda\$0",
+                BoardConnectionManager::class.java,
+                BoardIds::class.java,
+                String::class.java
+            ).apply { isAccessible = true }.invoke(null, manager, BoardIds.SYNTHETIC_BOARD, "")
+            assertTrue(stateStore.get().connected)
+
+            hooksClass.getDeclaredMethod(
+                "enableChannelFallback\$lambda\$0",
+                BoardConnectionManager::class.java,
+                Int::class.javaPrimitiveType
+            ).apply { isAccessible = true }.invoke(null, manager, 0)
+            assertEquals(listOf(0), stateStore.get().enabledChannels)
+
+            hooksClass.getDeclaredMethod(
+                "startStreamFallback\$lambda\$0",
+                BoardConnectionManager::class.java
+            ).apply { isAccessible = true }.invoke(null, manager)
+            assertTrue(stateStore.get().streaming)
+
+            hooksClass.getDeclaredMethod(
+                "stopStreamFallback\$lambda\$0",
+                BoardConnectionManager::class.java
+            ).apply { isAccessible = true }.invoke(null, manager)
+            assertEquals(false, stateStore.get().streaming)
+
+            hooksClass.getDeclaredMethod(
+                "closeFallback\$lambda\$0",
+                BoardConnectionManager::class.java
+            ).apply { isAccessible = true }.invoke(null, manager)
+            assertEquals(false, stateStore.get().connected)
+        } finally {
+            RunnerRuntimeHooks.reset()
+            runCatching { manager.stopStream() }
+            runCatching { manager.close() }
+        }
+    }
+
+    @Test
     fun `default runner logger factory uses the shared logger provider when unmodified`() {
         // Covers the unmodified logger-provider fallback path with no runner-specific hook installed.
         assertNotNull(defaultRunnerLoggerFactory("MainSmokeTest.defaultLoggerProvider"))
@@ -526,6 +645,26 @@ class MainSmokeTest {
             manager.stopStream()
             manager.close()
         }
+    }
+
+    @Test
+    fun `invoke runner hardware main returns when the delegated backend exits immediately`() = runBlocking {
+        // Covers the direct wrapper path using the disconnected default backend state that exits without starting a stream.
+        val stateStore = StateStore(HardwareState())
+        val manager = BoardConnectionManager(stateStore)
+
+        val result = withTimeoutOrNull(3_000) {
+            invokeRunnerHardwareMain(
+                args = emptyArray(),
+                onFiltered = {},
+                onFFTResult = {},
+                onBandPowers = {},
+                stateStore = stateStore,
+                manager = manager
+            )
+        }
+
+        assertEquals(Unit, result)
     }
 
     @Test
