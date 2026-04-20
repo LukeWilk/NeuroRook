@@ -13,6 +13,10 @@
 
 **NeuroRook** is a neurofeedback suite built on top of the [BrainFlow library](https://brainflow.org/). The project is in active development, with a primary focus on desktop (JVM) support and planned expansion to Android and iOS platforms. NeuroRook aims to provide a robust, extensible, and user-friendly environment for neurofeedback research and applications.
 
+<p align="center">
+  <img src="./documentation/main_window.jpg" width="900" alt="NeuroRook desktop main window screenshot">
+</p>
+
 ---
 
 ## Features

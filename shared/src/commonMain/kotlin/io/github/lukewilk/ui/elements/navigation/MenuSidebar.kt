@@ -1,5 +1,6 @@
 package io.github.lukewilk.ui.elements.navigation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -36,6 +37,9 @@ internal fun menuSidebarItemHasDivider(index: Int, lastIndex: Int): Boolean = in
 internal fun menuSidebarMenuTitleForMenu(hasHeaderContent: Boolean, title: String?): String? =
     if (hasHeaderContent) null else title
 
+/**
+ * Sidebar navigation shell that paints its host background behind the rounded surface so desktop window chrome never bleeds through.
+ */
 @Composable
 fun MenuSidebar(
     title: String? = null,
@@ -55,7 +59,12 @@ fun MenuSidebar(
     val updateExpanded: (Boolean) -> Unit = onExpandedChange ?: { internalExpanded = it }
     val hasHeaderContent = headerContent != null
 
-    Row(modifier = modifier.fillMaxHeight()) {
+    Row(
+        modifier = modifier
+            .fillMaxHeight()
+            // Match the shell background behind the rounded surface so transparent corners never reveal a white window backdrop.
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         Surface(
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 2.dp,
