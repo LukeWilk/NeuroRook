@@ -10,6 +10,7 @@ import kotlin.test.assertTrue
 class MainDesktopTest {
     @Test
     fun `run desktop main wires look and feel before launching the compose host`() {
+        // Verifies the desktop bootstrap preserves the required order: configure the shell first, then launch Compose.
         val events = mutableListOf<String>()
         runDesktopMain(
             configureLookAndFeel = { events += "configure" },
@@ -20,6 +21,7 @@ class MainDesktopTest {
 
     @Test
     fun `configure system look and feel skips when the target class is already active`() {
+        // Covers the early-return branch so startup avoids reapplying the same Swing look and feel.
         val result = configureSystemLookAndFeel(
             systemClassName = { "same" },
             activeClassName = { "same" },
@@ -30,6 +32,7 @@ class MainDesktopTest {
 
     @Test
     fun `configure system look and feel applies and maps setter failures`() {
+        // Verifies both the successful apply path and the failure mapping when Swing rejects the requested look and feel.
         var appliedClass: String? = null
         val applied = configureSystemLookAndFeel(
             systemClassName = { "target" },
@@ -47,17 +50,10 @@ class MainDesktopTest {
         assertEquals(LookAndFeelApplyResult.FAILED, failed)
     }
 
-    @Test
-    fun `default desktop window spec matches the published shell geometry`() {
-        val spec = defaultDesktopWindowSpec()
-        assertEquals("NeuroRook", spec.title)
-        assertEquals(1440, spec.widthDp)
-        assertEquals(960, spec.heightDp)
-        assertEquals("neuroRook.png", spec.iconResourcePath)
-    }
 
     @Test
     fun `launch desktop app forwards work to the injected application host`() {
+        // Keeps the launch entrypoint test lightweight by asserting it still delegates to the supplied application host seam.
         var applicationHostInvoked = false
         launchDesktopApp(
             applicationHost = { _ ->

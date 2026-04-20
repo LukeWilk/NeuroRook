@@ -4,18 +4,53 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.graphics.Color
 import java.io.File
 import java.awt.Color as AwtColor
 import javax.swing.UIManager
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.pow
+
+internal const val DesktopSystemThemePollingIntervalMillis = 2000L
 
 @Composable
 fun rememberDesktopSystemColorScheme(
     schemeBuilder: () -> ColorScheme = ::buildDesktopSystemColorScheme
-) = remember(schemeBuilder) {
-    schemeBuilder()
+): ColorScheme = rememberDesktopSystemColorScheme(
+    schemeBuilder = schemeBuilder,
+    refreshKeyProvider = ::defaultDesktopSystemThemeSignature
+)
+
+@Composable
+internal fun rememberDesktopSystemColorScheme(
+    schemeBuilder: () -> ColorScheme,
+    refreshKeyProvider: () -> DesktopSystemThemeSignature,
+    refreshIntervalMillis: Long = DesktopSystemThemePollingIntervalMillis
+): ColorScheme {
+    val latestRefreshKeyProvider by rememberUpdatedState(refreshKeyProvider)
+    val pollIntervalMillis = refreshIntervalMillis.coerceAtLeast(1L)
+    val refreshKey by produceState(
+        initialValue = latestRefreshKeyProvider(),
+        key1 = pollIntervalMillis
+    ) {
+        while (currentCoroutineContext().isActive) {
+            delay(pollIntervalMillis)
+            val next = latestRefreshKeyProvider()
+            if (next != value) {
+                value = next
+            }
+        }
+    }
+
+    return remember(refreshKey, schemeBuilder) {
+        schemeBuilder()
+    }
 }
 
 internal data class DesktopSystemColorSchemeDependencies(
@@ -34,6 +69,39 @@ internal fun defaultDesktopSystemColorSchemeDependencies(
         uiColor = swingUiColor,
         isDarkFallback = desktopDarkFallback()
     )
+
+internal data class DesktopSystemThemeSignature(
+    val kdeGlobals: KdeGlobals,
+    val uiColors: Map<String, Color?>,
+    val isDarkFallback: Boolean,
+    val activeLookAndFeelClassName: String?
+)
+
+internal fun defaultDesktopSystemThemeSignature(
+    kdeGlobalsProvider: () -> KdeGlobals = { readKdeGlobals() },
+    swingUiColor: (String) -> Color? = ::desktopUiColor,
+    desktopDarkFallback: () -> Boolean = { isLikelyDarkTheme() },
+    activeLookAndFeelClassName: () -> String? = { UIManager.getLookAndFeel()?.javaClass?.name }
+): DesktopSystemThemeSignature = DesktopSystemThemeSignature(
+    kdeGlobals = kdeGlobalsProvider(),
+    uiColors = trackedDesktopUiColorKeys().associateWith(swingUiColor),
+    isDarkFallback = desktopDarkFallback(),
+    activeLookAndFeelClassName = activeLookAndFeelClassName()
+)
+
+internal fun trackedDesktopUiColorKeys(): List<String> = listOf(
+    "Panel.background",
+    "Panel.foreground",
+    "TextField.background",
+    "TextField.foreground",
+    "Button.background",
+    "Button.foreground"
+)
+    .plus(primaryUiColorKeys())
+    .plus(onPrimaryUiColorKeys())
+    .plus(secondaryUiColorKeys())
+    .plus(tertiaryUiColorKeys())
+    .distinct()
 
 internal fun buildDesktopSystemColorScheme(
     dependencies: DesktopSystemColorSchemeDependencies = defaultDesktopSystemColorSchemeDependencies()
@@ -198,10 +266,10 @@ internal fun resolvePrimary(
     uiColor: (String) -> Color?,
     fallbackPrimary: Color
 ): Color =
-    kdeGlobals.color("General", "LastUsedCustomAccentColor")
-        ?: kdeGlobals.color("Colors:Selection", "BackgroundNormal")
+    kdeGlobals.color("Colors:Selection", "BackgroundNormal")
         ?: kdeGlobals.color("Colors:Window", "DecorationFocus")
         ?: kdeGlobals.color("Colors:Button", "DecorationFocus")
+        ?: kdeGlobals.color("General", "LastUsedCustomAccentColor")
         ?: firstAvailableUiColor(uiColor, primaryUiColorKeys())
         ?: fallbackPrimary
 
@@ -540,7 +608,7 @@ internal fun contrastRatio(background: Color, foreground: Color): Double {
     return (lighter + 0.05) / (darker + 0.05)
 }
 
-internal class KdeGlobals(private val sections: Map<String, Map<String, String>>) {
+internal data class KdeGlobals(private val sections: Map<String, Map<String, String>>) {
     fun color(section: String, key: String): Color? = parseRgb(sections[section]?.get(key))
 }
 

@@ -42,7 +42,7 @@ class DesktopSystemColorSchemeTest {
         assertColorEquals(rgb(49, 54, 59), scheme.onBackground)
         assertColorEquals(rgb(250, 251, 252), scheme.surface)
         assertColorEquals(rgb(49, 54, 59), scheme.onSurface)
-        assertColorEquals(rgb(233, 100, 58), scheme.primary)
+        assertColorEquals(rgb(251, 132, 65), scheme.primary)
     }
 
     @Test
@@ -762,6 +762,7 @@ class DesktopSystemColorSchemeTest {
 
     @Test
     fun `remember desktop system color scheme composable returns a scheme`() = runComposeUiTest {
+        // Smoke-tests the default desktop theme hook so the Compose entry point still produces a color scheme.
         setContent {
             MaterialTheme {
                 val scheme = rememberDesktopSystemColorScheme()
@@ -906,6 +907,8 @@ class DesktopSystemColorSchemeTest {
     fun `primary resolver walks plasma and ui fallback order`() {
         val plasma = parseKdeGlobals(
             """
+            [Colors:Window]
+            DecorationFocus=77,88,99
             [General]
             LastUsedCustomAccentColor=11,22,33
             [Colors:Selection]
@@ -913,7 +916,19 @@ class DesktopSystemColorSchemeTest {
             """.trimIndent()
         )
         val fromPlasma = resolvePrimary(plasma, { null }, rgb(1, 1, 1))
-        assertColorEquals(rgb(11, 22, 33), fromPlasma)
+        assertColorEquals(rgb(44, 55, 66), fromPlasma)
+
+        val fromGeneralAccent = resolvePrimary(
+            parseKdeGlobals(
+                """
+                [General]
+                LastUsedCustomAccentColor=12,34,56
+                """.trimIndent()
+            ),
+            { null },
+            rgb(2, 2, 2)
+        )
+        assertColorEquals(rgb(12, 34, 56), fromGeneralAccent)
 
         val fromUi = resolvePrimary(parseKdeGlobals(""), { key ->
             if (key == "Menu.selectionBackground") rgb(77, 88, 99) else null
@@ -1241,6 +1256,7 @@ class DesktopSystemColorSchemeTest {
 
     @Test
     fun `remember desktop system color scheme honors custom scheme builder`() = runComposeUiTest {
+        // Confirms callers can still inject a prebuilt scheme without losing the public builder override seam.
         val marker = rgb(12, 34, 56)
         val customScheme = lightColorScheme(primary = marker)
 
@@ -1253,7 +1269,48 @@ class DesktopSystemColorSchemeTest {
     }
 
     @Test
+    fun `remember desktop system color scheme recomputes when tracked desktop theme state changes`() = runComposeUiTest {
+        // Simulates a runtime system theme flip so Material colors refresh without restarting the desktop app.
+        val light = lightColorScheme(primary = rgb(200, 40, 40))
+        val dark = darkColorScheme(primary = rgb(40, 90, 200))
+        val refreshKey = androidx.compose.runtime.mutableStateOf(
+            DesktopSystemThemeSignature(
+                kdeGlobals = parseKdeGlobals(lightPlasmaConfig()),
+                uiColors = emptyMap(),
+                isDarkFallback = false,
+                activeLookAndFeelClassName = "light"
+            )
+        )
+
+        setContent {
+            val scheme = rememberDesktopSystemColorScheme(
+                schemeBuilder = {
+                    if (refreshKey.value.activeLookAndFeelClassName == "light") light else dark
+                },
+                refreshKeyProvider = { refreshKey.value },
+                refreshIntervalMillis = 1L
+            )
+            Text(
+                "primary:${if (scheme.primary == light.primary) "light" else "dark"}"
+            )
+        }
+
+        onNodeWithText("primary:light").assertIsDisplayed()
+
+        refreshKey.value = refreshKey.value.copy(
+            kdeGlobals = parseKdeGlobals(darkPlasmaConfig()),
+            isDarkFallback = true,
+            activeLookAndFeelClassName = "dark"
+        )
+
+        Thread.sleep(50)
+        waitForIdle()
+        onNodeWithText("primary:dark").assertIsDisplayed()
+    }
+
+    @Test
     fun `remember desktop system color scheme can build through default dependency seams`() = runComposeUiTest {
+        // Exercises the injected dependency seam used by the desktop theme builder when external color sources are supplied.
         val injectedKde = parseKdeGlobals(
             """
             [Colors:Window]
@@ -1279,6 +1336,19 @@ class DesktopSystemColorSchemeTest {
         }
 
         onNodeWithText("bg:9-10-11").assertIsDisplayed()
+    }
+
+    @Test
+    fun `tracked desktop ui color keys are unique and include every resolver lookup`() {
+        // Guards the polling signature so runtime theme refreshes continue monitoring every Swing color key we resolve.
+        val trackedKeys = trackedDesktopUiColorKeys()
+
+        assertEquals(trackedKeys.size, trackedKeys.distinct().size)
+        assertTrue(trackedKeys.containsAll(primaryUiColorKeys()))
+        assertTrue(trackedKeys.containsAll(onPrimaryUiColorKeys()))
+        assertTrue(trackedKeys.containsAll(secondaryUiColorKeys()))
+        assertTrue(trackedKeys.containsAll(tertiaryUiColorKeys()))
+        assertTrue(trackedKeys.containsAll(listOf("Panel.background", "Panel.foreground", "TextField.background", "TextField.foreground", "Button.background", "Button.foreground")))
     }
 
     @Test
