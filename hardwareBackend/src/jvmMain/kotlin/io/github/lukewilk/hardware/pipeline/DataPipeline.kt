@@ -70,7 +70,7 @@ suspend fun startDataPipeline(
             val acquisition = DataAcquisition(connectionManager = manager)
             val rawFlow = acquisition.streamRawFrames()
             // Exponential moving average for band power smoothing
-            val bandEma = mutableMapOf<String, ExponentialMovingAverage>()
+            val bandEma = mutableMapOf<Pair<Int, String>, ExponentialMovingAverage>()
             try {
                 // Buffer and process each frame
                 buffer(
@@ -124,7 +124,7 @@ suspend fun startDataPipeline(
                     // Compute and smooth band powers
                     val smoothedBandPowers = st.bands.map { band ->
                         val rawPower = bandPower(psd, band.lowHz, band.highHz)
-                        val ema = bandEma.getOrPut(band.name) { ExponentialMovingAverage(alpha = 0.3) }
+                        val ema = bandEma.getOrPut(frame.channel to band.name) { ExponentialMovingAverage(alpha = 0.3) }
                         BandPower(band.name, ema.update(rawPower))
                     }
                     val bandPowerSummary =
