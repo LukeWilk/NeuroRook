@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
@@ -52,9 +51,7 @@ internal fun menuSidebarToggleContentDescription(expanded: Boolean): String =
 internal fun menuSidebarMenuTitleForMenu(hasHeaderContent: Boolean, title: String?): String? =
     null
 
-/**
- * Sidebar navigation shell that paints its host background behind the rounded surface so desktop window chrome never bleeds through.
- */
+/** Sidebar navigation shell for the desktop scaffold. */
 @Composable
 fun MenuSidebar(
     title: String? = null,
@@ -77,13 +74,12 @@ fun MenuSidebar(
     Row(
         modifier = modifier
             .fillMaxHeight()
-            // Match the shell background behind the rounded surface so transparent corners never reveal a white window backdrop.
+            // Keep the host background aligned with the sidebar surface so no window chrome shows through.
             .background(MaterialTheme.colorScheme.background)
     ) {
         Surface(
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 2.dp,
-            shape = RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp),
             modifier = Modifier
                 .width(menuSidebarWidth(isExpanded, collapsedWidth, expandedWidth).dp)
                 .fillMaxHeight()
