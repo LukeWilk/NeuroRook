@@ -134,13 +134,14 @@ fun MenuSidebar(
                             headerContent()
                             HorizontalDivider(thickness = 1.dp)
                         }
-                        Menu(
-                            title = menuSidebarMenuTitleForMenu(),
-                            items = items,
-                            icons = icons,
-                            selectedIndex = selectedIndex
-                        )
                     }
+                    Menu(
+                        title = if (isExpanded) menuSidebarMenuTitleForMenu() else null,
+                        items = items,
+                        icons = icons,
+                        selectedIndex = selectedIndex,
+                        compact = !isExpanded
+                    )
                 }
             }
         }

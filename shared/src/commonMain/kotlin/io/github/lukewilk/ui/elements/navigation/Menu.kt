@@ -20,7 +20,8 @@ fun Menu(
     items: List<Pair<String, () -> Unit>>,
     modifier: Modifier = Modifier,
     icons: List<ImageVector?> = emptyList(),
-    selectedIndex: Int = -1
+    selectedIndex: Int = -1,
+    compact: Boolean = false
 ) {
     val menuItems = items.mapIndexed { index, (label, action) ->
         MenuItemUiState(
@@ -41,7 +42,7 @@ fun Menu(
             HorizontalDivider(thickness = 1.dp)
         }
         menuItems.forEachIndexed { idx, item ->
-            MenuItem(item)
+            MenuItem(item, compact = compact)
             if (menuItemHasDivider(idx, menuItems.lastIndex)) HorizontalDivider(thickness = 0.5.dp)
         }
     }

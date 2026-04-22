@@ -95,7 +95,7 @@ class AppSmokeTest {
 
     @Test
     fun `app shell workflow can switch sections collapse and return to hardware`() = runComposeUiTest {
-        // Covers the root app shell as a real navigation workflow instead of isolated one-step renders.
+        // Covers the root app shell as a real navigation workflow, including icon-only collapsed navigation.
         setContent {
             App(backendApi = null)
         }
@@ -104,8 +104,8 @@ class AppSmokeTest {
         onNodeWithText("Signals screen coming soon...").assertIsDisplayed()
         onNodeWithContentDescription("Collapse sidebar").performClick()
         onNodeWithText("Signals").assertDoesNotExist()
-        onNodeWithContentDescription("Expand sidebar").performClick()
-        onNodeWithText("Hardware").performClick()
+        onNodeWithContentDescription("Signals navigation icon").assertIsDisplayed()
+        onNodeWithContentDescription("Hardware").performClick()
         onNodeWithText("Device Selection").assertIsDisplayed()
     }
 

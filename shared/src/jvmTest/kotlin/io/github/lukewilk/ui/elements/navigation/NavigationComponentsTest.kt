@@ -157,6 +157,28 @@ class NavigationComponentsTest {
     }
 
     @Test
+    fun `menu can render compact icon-only navigation rows`() {
+        // Verifies the collapsed-sidebar menu mode hides labels while keeping the navigation icons visible.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Menu(
+                        title = null,
+                        items = listOf("Hardware" to {}, "Protocols" to {}),
+                        icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article),
+                        compact = true
+                    )
+                }
+            }
+
+            onNodeWithText("Hardware").assertDoesNotExist()
+            onNodeWithText("Protocols").assertDoesNotExist()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
+        }
+    }
+
+    @Test
     fun `menu renders its title even when callers provide no items`() {
         // Covers the zero-item path so the menu can render only its optional heading without producing child entries.
         runComposeUiTest {
@@ -376,6 +398,8 @@ class NavigationComponentsTest {
             onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Shell Header").assertDoesNotExist()
             onNodeWithText("Protocols").assertDoesNotExist()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
             onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("Shell Header").assertIsDisplayed()
         }
@@ -471,6 +495,7 @@ class NavigationComponentsTest {
             onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertDoesNotExist()
+            onNodeWithContentDescription("Hardware").assertIsDisplayed()
             onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertIsDisplayed()

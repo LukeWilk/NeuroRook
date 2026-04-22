@@ -20,6 +20,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Compose tests for [MenuSidebar] behavior around expansion, system mode labels, and header slots.
@@ -127,6 +128,7 @@ class MenuSidebarComposeJvmTest {
         onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Hardware").assertDoesNotExist()
+        onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
         onNodeWithContentDescription("Expand sidebar").performClick()
         waitForIdle()
         onNodeWithText("Hardware").assertIsDisplayed()
@@ -151,6 +153,7 @@ class MenuSidebarComposeJvmTest {
         onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Tab").assertDoesNotExist()
+        onNodeWithContentDescription("Tab navigation icon").assertIsDisplayed()
         onNodeWithContentDescription("Expand sidebar").performClick()
         waitForIdle()
         onNodeWithText("Tab").assertIsDisplayed()
@@ -174,6 +177,30 @@ class MenuSidebarComposeJvmTest {
         onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Solo").assertDoesNotExist()
+        onNodeWithContentDescription("Solo navigation icon").assertIsDisplayed()
+    }
+
+    @Test
+    fun `menu sidebar keeps collapsed icon-only items clickable`() = runComposeUiTest {
+        // Confirms collapsed navigation still exposes an accessible click target even when text labels are hidden.
+        var clicks = 0
+
+        setContent {
+            MaterialTheme {
+                MenuSidebar(
+                    title = null,
+                    items = listOf("Hardware" to { clicks += 1 }),
+                    icons = listOf(Icons.Outlined.Memory),
+                    expanded = false,
+                    onExpandedChange = { }
+                )
+            }
+        }
+
+        onNodeWithText("Hardware").assertDoesNotExist()
+        onNodeWithContentDescription("Hardware").assertIsDisplayed().performClick()
+
+        assertEquals(1, clicks)
     }
 
     @Test

@@ -146,7 +146,7 @@ class MainScaffoldTest {
 
     @Test
     fun `main scaffold shows the collapsed expand icon after closing the sidebar`() {
-        // Exercises the collapsed-sidebar header branch so the compact expand affordance stays visible.
+        // Exercises the collapsed-sidebar header branch so the compact expand affordance and icon-only navigation stay visible.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -160,6 +160,7 @@ class MainScaffoldTest {
 
             onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithContentDescription("Expand sidebar").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
         }
     }
 
@@ -188,7 +189,7 @@ class MainScaffoldTest {
 
     @Test
     fun `main scaffold shell workflow switches sections collapses and returns to hardware`() {
-        // Covers the classical shell workflow so the scaffold owns section selection and sidebar expansion coherently end to end.
+        // Covers the classical shell workflow so the scaffold keeps collapsed icon-only navigation interactive.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -204,8 +205,8 @@ class MainScaffoldTest {
             onNodeWithText("Protocols screen coming soon...").assertIsDisplayed()
             onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Protocols").assertDoesNotExist()
-            onNodeWithContentDescription("Expand sidebar").performClick()
-            onNodeWithText("Hardware").performClick()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware").performClick()
             onNodeWithText("Hardware screen content").assertIsDisplayed()
         }
     }
