@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import io.github.lukewilk.ui.elements.scroll.VerticalScrollCueBox
 
 internal const val NEUROROOK_REPOSITORY_URL = "https://github.com/LukeWilk/NeuroRook"
 
@@ -23,57 +24,63 @@ internal const val NEUROROOK_REPOSITORY_URL = "https://github.com/LukeWilk/Neuro
 @Composable
 internal fun AboutScreen(onOpenRepositoryUrl: ((String) -> Unit)? = null) {
     val repositoryUrlOpener = onOpenRepositoryUrl ?: LocalUriHandler.current::openUri
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 20.dp)
+    val scrollState = rememberScrollState()
+    VerticalScrollCueBox(
+        scrollState = scrollState,
+        modifier = Modifier.fillMaxSize()
     ) {
-        Text(
-            text = "About Neuro Rook",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            text = "Icon attribution",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 12.dp)
-        )
-        Text(
-            text = "• Material Symbols / Material Icons by Google\n• Licensed under the Apache License 2.0\n• Source: https://fonts.google.com/icons",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        Text(
-            text = "NeuroRook",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 20.dp)
-        )
-        Text(
-            text = "Repository",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        Text(
-            text = NEUROROOK_REPOSITORY_URL,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary,
-            textDecoration = TextDecoration.Underline,
+        Column(
             modifier = Modifier
-                .padding(top = 4.dp)
-                .clickable { repositoryUrlOpener(NEUROROOK_REPOSITORY_URL) }
-        )
-        Text(
-            text = "License: MIT License\nCopyright (c) 2026 Luke Wilk",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+        ) {
+            Text(
+                text = "About Neuro Rook",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "Icon attribution",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            Text(
+                text = "• Material Symbols / Material Icons by Google\n• Licensed under the Apache License 2.0\n• Source: https://fonts.google.com/icons",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Text(
+                text = "NeuroRook",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 20.dp)
+            )
+            Text(
+                text = "Repository",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Text(
+                text = NEUROROOK_REPOSITORY_URL,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clickable { repositoryUrlOpener(NEUROROOK_REPOSITORY_URL) }
+            )
+            Text(
+                text = "License: MIT License\nCopyright (c) 2026 Luke Wilk",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }
 

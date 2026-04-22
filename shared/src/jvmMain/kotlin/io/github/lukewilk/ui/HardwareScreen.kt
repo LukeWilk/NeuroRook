@@ -28,6 +28,7 @@ import io.github.lukewilk.shared.api.BackendApi
 import io.github.lukewilk.shared.model.SerialPortSuggestion
 import io.github.lukewilk.shared.model.SystemLogEntry
 import io.github.lukewilk.shared.model.SystemLogSeverity
+import io.github.lukewilk.ui.elements.scroll.VerticalScrollCueBox
 import io.github.lukewilk.ui.hardware.DeviceSelectionCard
 import io.github.lukewilk.ui.hardware.SystemLogCard
 import io.github.lukewilk.ui.hardware.boardControlCard.BoardControlCard
@@ -170,119 +171,50 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val scrollState = rememberScrollState()
         if (useCompactHardwareLayout(maxWidth)) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(compactSpacing),
+            VerticalScrollCueBox(
+                scrollState = scrollState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = compactHorizontalPadding)
-                    .verticalScroll(scrollState)
             ) {
-                Box(Modifier.padding(top = cardOuterTopPadding, bottom = cardOuterMidPadding)) {
-                    DeviceSelectionCard(
-                        availableBoards = displayState.boardLabels,
-                        selectedBoard = displayState.resolvedSelectedBoard,
-                        onBoardSelected = { selectedBoard = it },
-                        serialPort = serialPort,
-                        onSerialPortChange = {
-                            serialPort = it
-                            hasManualSerialPortSelection = true
-                        },
-                        serialPortPlaceholder = displayState.serialPortPlaceholder,
-                        serialPortSuggestions = serialPortSuggestions,
-                        selectedSerialPortSuggestion = displayState.selectedSerialPortSuggestion,
-                        onSerialPortSuggestionSelected = { suggestionIndex ->
-                            serialPort = selectedSerialPortPathFor(serialPortSuggestions, suggestionIndex)
-                            hasManualSerialPortSelection = true
-                        },
-                        onRefreshSerialPorts = refreshSerialPorts,
-                        isLoadingSerialPorts = isLoadingSerialPorts,
-                        serialPortSupportText = displayState.serialPortSupportText,
-                        timeout = timeout,
-                        onTimeoutChange = { timeout = it },
-                        isConnected = hardwareState.connected,
-                        isBusy = isBusy,
-                        onConnect = connectToSelectedBoard,
-                        onDisconnect = disconnectFromBoard,
-                        canSelectBoard = displayState.boardsReady,
-                        canConnect = displayState.boardsReady
-                    )
-                }
-                Box(Modifier.padding(vertical = cardOuterMidPadding)) {
-                    SystemLogCard(displayState.displayedLogs)
-                }
-                Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterBottomPadding)) {
-                    BoardControlCard(
-                        availableBoards = displayState.boardLabels,
-                        selectedBoard = displayState.resolvedSelectedBoard,
-                        isConnected = hardwareState.connected,
-                        isStreaming = hardwareState.streaming,
-                        isBusy = isBusy,
-                        channels = displayState.channels,
-                        onChannelToggle = toggleChannel,
-                        onRldToggle = toggleRld,
-                        onVerifyChannels = verifyChannels,
-                        onStartStreaming = startStreaming,
-                        onStopStreaming = stopStreaming
-                    )
-                }
-            }
-        } else {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-                    .padding(horizontal = wideHorizontalPadding)
-                    .verticalScroll(scrollState)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(wideSpacing)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(compactSpacing),
+                    modifier = Modifier.verticalScroll(scrollState)
                 ) {
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(wideSpacing)
-                    ) {
-                        Box(Modifier.padding(top = cardOuterTopPadding, bottom = cardOuterMidPadding)) {
-                            DeviceSelectionCard(
-                                availableBoards = displayState.boardLabels,
-                                selectedBoard = displayState.resolvedSelectedBoard,
-                                onBoardSelected = { selectedBoard = it },
-                                serialPort = serialPort,
-                                onSerialPortChange = {
-                                    serialPort = it
-                                    hasManualSerialPortSelection = true
-                                },
-                                serialPortPlaceholder = displayState.serialPortPlaceholder,
-                                serialPortSuggestions = serialPortSuggestions,
-                                selectedSerialPortSuggestion = displayState.selectedSerialPortSuggestion,
-                                onSerialPortSuggestionSelected = { suggestionIndex ->
-                                    serialPort = selectedSerialPortPathFor(serialPortSuggestions, suggestionIndex)
-                                    hasManualSerialPortSelection = true
-                                },
-                                onRefreshSerialPorts = refreshSerialPorts,
-                                isLoadingSerialPorts = isLoadingSerialPorts,
-                                serialPortSupportText = displayState.serialPortSupportText,
-                                timeout = timeout,
-                                onTimeoutChange = { timeout = it },
-                                isConnected = hardwareState.connected,
-                                isBusy = isBusy,
-                                onConnect = connectToSelectedBoard,
-                                onDisconnect = disconnectFromBoard,
-                                canSelectBoard = displayState.boardsReady,
-                                canConnect = displayState.boardsReady
-                            )
-                        }
-                        Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterBottomPadding)) {
-                            SystemLogCard(displayState.displayedLogs)
-                        }
+                    Box(Modifier.padding(top = cardOuterTopPadding, bottom = cardOuterMidPadding)) {
+                        DeviceSelectionCard(
+                            availableBoards = displayState.boardLabels,
+                            selectedBoard = displayState.resolvedSelectedBoard,
+                            onBoardSelected = { selectedBoard = it },
+                            serialPort = serialPort,
+                            onSerialPortChange = {
+                                serialPort = it
+                                hasManualSerialPortSelection = true
+                            },
+                            serialPortPlaceholder = displayState.serialPortPlaceholder,
+                            serialPortSuggestions = serialPortSuggestions,
+                            selectedSerialPortSuggestion = displayState.selectedSerialPortSuggestion,
+                            onSerialPortSuggestionSelected = { suggestionIndex ->
+                                serialPort = selectedSerialPortPathFor(serialPortSuggestions, suggestionIndex)
+                                hasManualSerialPortSelection = true
+                            },
+                            onRefreshSerialPorts = refreshSerialPorts,
+                            isLoadingSerialPorts = isLoadingSerialPorts,
+                            serialPortSupportText = displayState.serialPortSupportText,
+                            timeout = timeout,
+                            onTimeoutChange = { timeout = it },
+                            isConnected = hardwareState.connected,
+                            isBusy = isBusy,
+                            onConnect = connectToSelectedBoard,
+                            onDisconnect = disconnectFromBoard,
+                            canSelectBoard = displayState.boardsReady,
+                            canConnect = displayState.boardsReady
+                        )
                     }
-                    Box(
-                        Modifier
-                            .weight(1f, fill = false)
-                            .padding(top = cardOuterTopPadding, bottom = cardOuterBottomPadding)
-                    ) {
+                    Box(Modifier.padding(vertical = cardOuterMidPadding)) {
+                        SystemLogCard(displayState.displayedLogs)
+                    }
+                    Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterBottomPadding)) {
                         BoardControlCard(
                             availableBoards = displayState.boardLabels,
                             selectedBoard = displayState.resolvedSelectedBoard,
@@ -296,6 +228,85 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
                             onStartStreaming = startStreaming,
                             onStopStreaming = stopStreaming
                         )
+                    }
+                }
+            }
+        } else {
+            VerticalScrollCueBox(
+                scrollState = scrollState,
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(horizontal = wideHorizontalPadding)
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(wideSpacing)
+                    ) {
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(wideSpacing)
+                        ) {
+                            Box(Modifier.padding(top = cardOuterTopPadding, bottom = cardOuterMidPadding)) {
+                                DeviceSelectionCard(
+                                    availableBoards = displayState.boardLabels,
+                                    selectedBoard = displayState.resolvedSelectedBoard,
+                                    onBoardSelected = { selectedBoard = it },
+                                    serialPort = serialPort,
+                                    onSerialPortChange = {
+                                        serialPort = it
+                                        hasManualSerialPortSelection = true
+                                    },
+                                    serialPortPlaceholder = displayState.serialPortPlaceholder,
+                                    serialPortSuggestions = serialPortSuggestions,
+                                    selectedSerialPortSuggestion = displayState.selectedSerialPortSuggestion,
+                                    onSerialPortSuggestionSelected = { suggestionIndex ->
+                                        serialPort = selectedSerialPortPathFor(serialPortSuggestions, suggestionIndex)
+                                        hasManualSerialPortSelection = true
+                                    },
+                                    onRefreshSerialPorts = refreshSerialPorts,
+                                    isLoadingSerialPorts = isLoadingSerialPorts,
+                                    serialPortSupportText = displayState.serialPortSupportText,
+                                    timeout = timeout,
+                                    onTimeoutChange = { timeout = it },
+                                    isConnected = hardwareState.connected,
+                                    isBusy = isBusy,
+                                    onConnect = connectToSelectedBoard,
+                                    onDisconnect = disconnectFromBoard,
+                                    canSelectBoard = displayState.boardsReady,
+                                    canConnect = displayState.boardsReady
+                                )
+                            }
+                            Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterBottomPadding)) {
+                                SystemLogCard(displayState.displayedLogs)
+                            }
+                        }
+                        Box(
+                            Modifier
+                                .weight(1f, fill = false)
+                                .padding(top = cardOuterTopPadding, bottom = cardOuterBottomPadding)
+                        ) {
+                            BoardControlCard(
+                                availableBoards = displayState.boardLabels,
+                                selectedBoard = displayState.resolvedSelectedBoard,
+                                isConnected = hardwareState.connected,
+                                isStreaming = hardwareState.streaming,
+                                isBusy = isBusy,
+                                channels = displayState.channels,
+                                onChannelToggle = toggleChannel,
+                                onRldToggle = toggleRld,
+                                onVerifyChannels = verifyChannels,
+                                onStartStreaming = startStreaming,
+                                onStopStreaming = stopStreaming
+                            )
+                        }
                     }
                 }
             }

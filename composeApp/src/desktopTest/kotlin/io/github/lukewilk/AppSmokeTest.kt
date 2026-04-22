@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -113,7 +114,7 @@ class AppSmokeTest {
             App(backendApi = null)
         }
 
-        onNodeWithText("About").performClick()
+        onNodeWithText("About").performScrollTo().performClick()
         onNodeWithText("About Neuro Rook").assertIsDisplayed()
         onNodeWithText("Icon attribution").assertIsDisplayed()
         onNodeWithText("NeuroRook").assertIsDisplayed()
@@ -291,7 +292,21 @@ class AppSmokeTest {
             return true
         }
 
-        return !System.getenv("DISPLAY").isNullOrBlank() || !System.getenv("WAYLAND_DISPLAY").isNullOrBlank()
+        val hasDisplayEnvironment = !System.getenv("DISPLAY").isNullOrBlank() || !System.getenv("WAYLAND_DISPLAY").isNullOrBlank()
+        if (!hasDisplayEnvironment) {
+            return false
+        }
+
+        return runCatching {
+            java.awt.EventQueue.invokeAndWait {
+                Frame("NeuroRook desktop smoke probe").apply {
+                    setSize(1, 1)
+                    setLocation(-10_000, -10_000)
+                    isVisible = true
+                    dispose()
+                }
+            }
+        }.isSuccess
     }
 
     /** Waits for the real desktop entrypoint to publish a visible top-level window with the requested title. */

@@ -1,5 +1,6 @@
 package io.github.lukewilk.ui.elements.navigation
 
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.Memory
@@ -9,12 +10,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 
 /**
@@ -170,5 +174,35 @@ class MenuSidebarComposeJvmTest {
         onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Solo").assertDoesNotExist()
+    }
+
+    @Test
+    fun `menu sidebar shows overflow cues while long navigation content can scroll`() = runComposeUiTest {
+        // Confirms long menus advertise additional off-screen items and update the cue once users scroll downward.
+        val menuItems = (1..20).map { index -> "Item $index" to {} }
+        val menuIcons = List(menuItems.size) { Icons.Outlined.Memory }
+
+        setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.size(width = 220.dp, height = 240.dp)
+                ) {
+                    MenuSidebar(
+                        title = "App",
+                        items = menuItems,
+                        icons = menuIcons
+                    )
+                }
+            }
+        }
+
+        waitForIdle()
+
+        onNodeWithContentDescription("More content below", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithContentDescription("More content above", useUnmergedTree = true).assertDoesNotExist()
+
+        onNodeWithText("Item 20").performScrollTo().assertIsDisplayed()
+
+        onNodeWithContentDescription("More content above", useUnmergedTree = true).assertIsDisplayed()
     }
 }

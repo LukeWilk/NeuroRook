@@ -1,7 +1,6 @@
 package io.github.lukewilk.ui.elements.navigation
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import io.github.lukewilk.ui.elements.scroll.VerticalScrollCueBox
 
 internal fun menuSidebarWidth(expanded: Boolean, collapsedWidth: Int, expandedWidth: Int): Int =
     if (expanded) expandedWidth else collapsedWidth
@@ -70,6 +70,7 @@ fun MenuSidebar(
     val isExpanded = expanded ?: internalExpanded
     val updateExpanded: (Boolean) -> Unit = onExpandedChange ?: { internalExpanded = it }
     val hasHeaderContent = headerContent != null
+    val scrollState = rememberScrollState()
 
     Row(
         modifier = modifier
@@ -84,60 +85,66 @@ fun MenuSidebar(
                 .width(menuSidebarWidth(isExpanded, collapsedWidth, expandedWidth).dp)
                 .fillMaxHeight()
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+            VerticalScrollCueBox(
+                scrollState = scrollState,
+                modifier = Modifier.fillMaxHeight()
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Column(
                     modifier = Modifier
+                        .fillMaxHeight()
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                        .verticalScroll(scrollState)
                 ) {
-                    if (isExpanded && !hasHeaderContent && title != null) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(Modifier.weight(1f))
-                    }
-                    IconButton(
-                        onClick = { updateExpanded(!isExpanded) },
-                        colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Outlined.Close else Icons.Outlined.Menu,
-                            contentDescription = menuSidebarToggleContentDescription(isExpanded),
-                            modifier = Modifier.size(18.dp)
+                        if (isExpanded && !hasHeaderContent && title != null) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
+                        IconButton(
+                            onClick = { updateExpanded(!isExpanded) },
+                            colors = IconButtonDefaults.iconButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Outlined.Close else Icons.Outlined.Menu,
+                                contentDescription = menuSidebarToggleContentDescription(isExpanded),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    HorizontalDivider(thickness = 1.dp)
+                    if (isExpanded) {
+                        val systemModeLabel = menuSidebarSystemModeLabel(isSystemDark)
+                        if (systemModeLabel != null) {
+                            Text(
+                                text = systemModeLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                        }
+                        if (hasHeaderContent) {
+                            headerContent()
+                            HorizontalDivider(thickness = 1.dp)
+                        }
+                        Menu(
+                            title = menuSidebarMenuTitleForMenu(hasHeaderContent, title),
+                            items = items,
+                            icons = icons,
+                            selectedIndex = selectedIndex
                         )
                     }
-                }
-                HorizontalDivider(thickness = 1.dp)
-                if (isExpanded) {
-                    val systemModeLabel = menuSidebarSystemModeLabel(isSystemDark)
-                    if (systemModeLabel != null) {
-                        Text(
-                            text = systemModeLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                        )
-                    }
-                    if (hasHeaderContent) {
-                        headerContent()
-                        HorizontalDivider(thickness = 1.dp)
-                    }
-                    Menu(
-                        title = menuSidebarMenuTitleForMenu(hasHeaderContent, title),
-                        items = items,
-                        icons = icons,
-                        selectedIndex = selectedIndex
-                    )
                 }
             }
         }

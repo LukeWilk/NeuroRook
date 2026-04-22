@@ -1,6 +1,8 @@
 package io.github.lukewilk.ui
 
 import androidx.compose.ui.text.font.FontWeight
+import io.github.lukewilk.ui.elements.scroll.verticalScrollCueContentDescription
+import io.github.lukewilk.ui.elements.scroll.verticalScrollCueVisibility
 import io.github.lukewilk.ui.elements.navigation.menuItemHasDivider
 import io.github.lukewilk.ui.elements.navigation.menuShowsTitle
 import io.github.lukewilk.ui.elements.navigation.menuSidebarItemHasDivider
@@ -86,6 +88,25 @@ class CommonUiModelTest {
         assertEquals("Expand sidebar", menuSidebarToggleContentDescription(false))
         assertTrue(menuSidebarItemHasDivider(index = 0, lastIndex = 2))
         assertFalse(menuSidebarItemHasDivider(index = 2, lastIndex = 2))
+    }
+
+    @Test
+    fun `scroll cue model exposes top and bottom affordances only when overflow exists`() {
+        val noOverflow = verticalScrollCueVisibility(scrollValue = 0, maxScrollValue = 0)
+        val atTop = verticalScrollCueVisibility(scrollValue = 0, maxScrollValue = 24)
+        val inMiddle = verticalScrollCueVisibility(scrollValue = 12, maxScrollValue = 24)
+        val atBottom = verticalScrollCueVisibility(scrollValue = 24, maxScrollValue = 24)
+
+        assertFalse(noOverflow.showTopCue)
+        assertFalse(noOverflow.showBottomCue)
+        assertFalse(atTop.showTopCue)
+        assertTrue(atTop.showBottomCue)
+        assertTrue(inMiddle.showTopCue)
+        assertTrue(inMiddle.showBottomCue)
+        assertTrue(atBottom.showTopCue)
+        assertFalse(atBottom.showBottomCue)
+        assertEquals("More content above", verticalScrollCueContentDescription(isTopCue = true))
+        assertEquals("More content below", verticalScrollCueContentDescription(isTopCue = false))
     }
 
     @Test
