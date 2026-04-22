@@ -14,6 +14,7 @@ import io.github.lukewilk.hardware.pipeline.signal.applyWindow
 import io.github.lukewilk.hardware.pipeline.signal.bandPower
 import io.github.lukewilk.hardware.pipeline.signal.computeWelchPSD
 import io.github.lukewilk.shared.model.BandPower
+import io.github.lukewilk.shared.model.ChannelData
 import io.github.lukewilk.shared.FilterConfig
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.StateStore
@@ -29,15 +30,21 @@ import kotlinx.coroutines.launch
  * for real-time signal processing.
  *
  * @param onBandPowers Callback for band power results (per frame)
+ * @param onBandPowersByChannel Optional channel-aware callback for band power results
  * @param onFiltered Callback for filtered signal (per frame)
+ * @param onFilteredByChannel Optional channel-aware callback for filtered signal windows
  * @param onFFTResult Callback for FFT/PSD results (per frame)
+ * @param onFFTResultByChannel Optional channel-aware callback for FFT/PSD results
  * @param stateStore The state store holding pipeline configuration and state
  * @param manager The board connection manager for hardware communication
  */
 suspend fun startDataPipeline(
     onBandPowers: ((List<BandPower>) -> Unit)? = null,
+    onBandPowersByChannel: ((ChannelData<List<BandPower>>) -> Unit)? = null,
     onFiltered: ((DoubleArray) -> Unit)? = null,
+    onFilteredByChannel: ((ChannelData<DoubleArray>) -> Unit)? = null,
     onFFTResult: ((Array<Pair<Double, Double>>) -> Unit)? = null,
+    onFFTResultByChannel: ((ChannelData<Array<Pair<Double, Double>>>) -> Unit)? = null,
     stateStore: StateStore<HardwareState>,
     manager: BoardConnectionManager
 ) {
@@ -69,8 +76,8 @@ suspend fun startDataPipeline(
             // Set up data acquisition and streaming
             val acquisition = DataAcquisition(connectionManager = manager)
             val rawFlow = acquisition.streamRawFrames()
-            // Exponential moving average for band power smoothing
-            val bandEma = mutableMapOf<String, ExponentialMovingAverage>()
+            // Keep smoothing state per (channel, band) so alternating channel windows cannot bleed into each other.
+            val bandEma = mutableMapOf<Pair<Int, String>, ExponentialMovingAverage>()
             try {
                 // Buffer and process each frame
                 buffer(
@@ -124,17 +131,25 @@ suspend fun startDataPipeline(
                     // Compute and smooth band powers
                     val smoothedBandPowers = st.bands.map { band ->
                         val rawPower = bandPower(psd, band.lowHz, band.highHz)
-                        val ema = bandEma.getOrPut(band.name) { ExponentialMovingAverage(alpha = 0.3) }
+                        val ema = bandEma.getOrPut(frame.channel to band.name) { ExponentialMovingAverage(alpha = 0.3) }
                         BandPower(band.name, ema.update(rawPower))
                     }
+                    // Preserve the originating channel on preferred-flow payloads so downstream collectors do not infer
+                    // channel identity from emission order alone.
+                    val filteredByChannel = ChannelData(channelId = frame.channel, payload = windowed)
+                    val bandPowersByChannel = ChannelData(channelId = frame.channel, payload = smoothedBandPowers)
+                    val fftResultByChannel = ChannelData(channelId = frame.channel, payload = psd)
                     val bandPowerSummary =
                         "BandPowers(channel=${frame.channel}): " +
                             smoothedBandPowers.joinToString(", ") { (name, power) -> "$name=${"%.4f".format(power)}" }
                     // Invoke callbacks for downstream consumers (API, UI, etc.)
                     logger.d { "Invoking pipeline callbacks for channel ${frame.channel}" }
                     onFiltered?.invoke(windowed)
+                    onFilteredByChannel?.invoke(filteredByChannel)
                     onBandPowers?.invoke(smoothedBandPowers)
+                    onBandPowersByChannel?.invoke(bandPowersByChannel)
                     onFFTResult?.invoke(psd)
+                    onFFTResultByChannel?.invoke(fftResultByChannel)
                     logger.d { bandPowerSummary }
                 }
             } finally {

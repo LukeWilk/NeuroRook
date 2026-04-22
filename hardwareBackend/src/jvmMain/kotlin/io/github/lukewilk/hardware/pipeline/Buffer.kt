@@ -28,9 +28,8 @@ suspend fun buffer(
     stateStore: StateStore<HardwareState>,
     onWindow: suspend (RawFrame) -> Unit
 ) {
-    val buffer = ArrayDeque<Double>()
-    var lastTimestamp: Long = 0
-    var channel: Int = 0
+    val channelBuffers = mutableMapOf<Int, ArrayDeque<Double>>()
+    val channelTimestamps = mutableMapOf<Int, Long>()
 
     inputFlow.collect { frame ->
         val ctx = currentCoroutineContext()
@@ -38,9 +37,9 @@ suspend fun buffer(
         // Use test hook if provided; otherwise default behavior
         if (shouldCancelBuffering(job, testJobCheckOverride)) throw CancellationException("Buffer coroutine cancelled")
 
-        buffer.addAll(frame.data.asList())
-        lastTimestamp = frame.timestampMs
-        channel = frame.channel
+        val channelBuffer = channelBuffers.getOrPut(frame.channel) { ArrayDeque() }
+        channelBuffer.addAll(frame.data.asList())
+        channelTimestamps[frame.channel] = frame.timestampMs
 
         val st = stateStore.get()
         var windowSize = st.windowSize
@@ -69,9 +68,9 @@ suspend fun buffer(
             val isPowerOfTwo = (nfft == windowSize)
             validateComputedWindow(windowSize, overlapSamples, isPowerOfTwo)
 
-            while (buffer.size >= windowSize) {
-                val window = buffer.take(windowSize).toDoubleArray()
-                val outFrame = RawFrame(lastTimestamp, channel, window)
+            while (channelBuffer.size >= windowSize) {
+                val window = channelBuffer.take(windowSize).toDoubleArray()
+                val outFrame = RawFrame(channelTimestamps.getValue(frame.channel), frame.channel, window)
                 try {
                     val ctx2 = currentCoroutineContext()
                     val job2 = ctx2[Job]
@@ -81,7 +80,7 @@ suspend fun buffer(
                     throw e
                 }
                 // Slide the buffer by hop samples (windowSize - overlapSamples)
-                slideBuffer(buffer, hop)
+                slideBuffer(channelBuffer, hop)
             }
         } else {
             // Existing behavior: windowSize & overlap stored as ints in state
@@ -103,9 +102,9 @@ suspend fun buffer(
 
             val hop = windowSize - overlap  // Number of samples to advance each iteration
 
-            while (buffer.size >= windowSize) {
-                val window = buffer.take(windowSize).toDoubleArray()
-                val outFrame = RawFrame(lastTimestamp, channel, window)
+            while (channelBuffer.size >= windowSize) {
+                val window = channelBuffer.take(windowSize).toDoubleArray()
+                val outFrame = RawFrame(channelTimestamps.getValue(frame.channel), frame.channel, window)
                 try {
                     val ctx2 = currentCoroutineContext()
                     val job2 = ctx2[Job]
@@ -115,7 +114,7 @@ suspend fun buffer(
                     throw e
                 }
                 // Slide the buffer by hop samples (windowSize - overlap)
-                slideBuffer(buffer, hop)
+                slideBuffer(channelBuffer, hop)
             }
         }
     }

@@ -179,4 +179,23 @@ class BackendApiStreamingLifecycleTest : BackendApiTestSupport() {
         assertFalse(api.getState().connected)
         assertFalse(api.getState().streaming)
     }
+
+    /** Verifies disconnect clears stale API streaming state so reconnecting can start a fresh stream. */
+    @Test
+    fun `reconnect can start streaming again after disconnect`() = runBlocking {
+        prepareSyntheticStreamingScenario()
+        assertTrue(api.startStreaming())
+
+        assertTrue(api.disconnect())
+        assertFalse(api.getState().connected)
+        assertFalse(api.getState().streaming)
+
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        assertTrue(api.enableChannel(0))
+        assertTrue(api.addWave(standardWave()))
+        assertTrue(api.setSamplingRateHz(250))
+
+        assertTrue(api.startStreaming())
+        assertTrue(api.getState().streaming, "Expected reconnect to start a new stream instead of reusing stale API state")
+    }
 }

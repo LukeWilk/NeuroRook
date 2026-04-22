@@ -7,12 +7,14 @@ import io.github.lukewilk.shared.api.BackendApi
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.WaveSpec
 import io.github.lukewilk.shared.model.BandPower
+import io.github.lukewilk.shared.model.ChannelData
 import io.github.lukewilk.shared.model.SerialPortSuggestion
 import io.github.lukewilk.shared.model.SystemLogEntry
 import io.github.lukewilk.shared.model.SystemLogSeverity
 import io.github.lukewilk.shared.StateStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * JVM backend implementation that bridges board control with the shared `BackendApi` contract.
+ *
+ * Preferred flows replay the latest processed payload together with its source channel id so new collectors do not
+ * lose context when streaming is already active. Legacy listeners remain payload-only for compatibility with older
+ * consumers that have not migrated to `ChannelData` yet.
+ */
 class HardwareBackendApi(
     private val serialPortDiscovery: SerialPortDiscovery = JSerialCommSerialPortDiscovery()
 ) : BackendApi {
@@ -38,15 +47,19 @@ class HardwareBackendApi(
     override val hardwareStateFlow: StateFlow<HardwareState> = stateStore.state
     override val systemLogFlow: StateFlow<List<SystemLogEntry>> = _systemLogFlow.asStateFlow()
 
-    private val _filteredFlow = MutableSharedFlow<DoubleArray>(replay = 1)
-    override val filteredFlow: Flow<DoubleArray> = _filteredFlow.asSharedFlow()
-    private val _bandPowersFlow = MutableSharedFlow<List<BandPower>>(replay = 1)
-    override val bandPowersFlow: Flow<List<BandPower>> = _bandPowersFlow.asSharedFlow()
-    private val _fftResultFlow = MutableSharedFlow<Array<Pair<Double, Double>>>(replay = 1)
-    override val fftResultFlow: Flow<Array<Pair<Double, Double>>> = _fftResultFlow.asSharedFlow()
+    // Replay the latest channel-tagged filtered window so late subscribers can render immediately without guessing origin.
+    private val _filteredFlow = MutableSharedFlow<ChannelData<DoubleArray>>(replay = 1)
+    override val filteredFlow: Flow<ChannelData<DoubleArray>> = _filteredFlow.asSharedFlow()
+    // Replay the latest channel-tagged feature summary for dashboards that attach mid-stream.
+    private val _bandPowersFlow = MutableSharedFlow<ChannelData<List<BandPower>>>(replay = 1)
+    override val bandPowersFlow: Flow<ChannelData<List<BandPower>>> = _bandPowersFlow.asSharedFlow()
+    // Replay the latest channel-tagged spectrum so FFT viewers keep channel identity across collector restarts.
+    private val _fftResultFlow = MutableSharedFlow<ChannelData<Array<Pair<Double, Double>>>>(replay = 1)
+    override val fftResultFlow: Flow<ChannelData<Array<Pair<Double, Double>>>> = _fftResultFlow.asSharedFlow()
 
     private var streamingJob: kotlinx.coroutines.Job? = null
 
+    // Legacy listeners intentionally stay payload-only so existing callers do not break during the flow migration.
     private var onFiltered: ((DoubleArray) -> Unit)? = null
     private var onBandPowers: ((List<BandPower>) -> Unit)? = null
     private var onFFTResult: ((Array<Pair<Double, Double>>) -> Unit)? = null
@@ -75,6 +88,8 @@ class HardwareBackendApi(
     override suspend fun disconnect(): Boolean {
         appendInfo("Disconnect requested for ${connectedBoardLabel("current board")}.")
         manager.close()
+        streamingJob = null
+        clearPreferredFlowReplayCaches()
         connectedBoardId = null
         appendInfo("Disconnected from board.")
         return true
@@ -89,6 +104,11 @@ class HardwareBackendApi(
     }
 
     override suspend fun removeWave(waveIndex: Int): Boolean {
+        if (waveIndex !in stateStore.get().waveSpecs.indices) {
+            appendWarn("Cannot remove wave at invalid index $waveIndex.")
+            return false
+        }
+
         stateStore.update { st ->
             st.copy(waveSpecs = st.waveSpecs.toMutableList().apply { removeAt(waveIndex) })
         }
@@ -97,6 +117,11 @@ class HardwareBackendApi(
     }
 
     override suspend fun editWave(waveIndex: Int, wave: WaveSpec): Boolean {
+        if (waveIndex !in stateStore.get().waveSpecs.indices) {
+            appendWarn("Cannot update wave at invalid index $waveIndex.")
+            return false
+        }
+
         stateStore.update { st ->
             st.copy(waveSpecs = st.waveSpecs.toMutableList().apply { set(waveIndex, wave) })
         }
@@ -125,16 +150,22 @@ class HardwareBackendApi(
         streamingJob = scope.launch {
             startDataPipeline(
                 onFiltered = {
-                    scope.launch { _filteredFlow.emit(it) }
                     onFiltered?.invoke(it)
                 },
+                onFilteredByChannel = {
+                    scope.launch { _filteredFlow.emit(it) }
+                },
                 onBandPowers = {
-                    scope.launch { _bandPowersFlow.emit(it) }
                     onBandPowers?.invoke(it)
                 },
+                onBandPowersByChannel = {
+                    scope.launch { _bandPowersFlow.emit(it) }
+                },
                 onFFTResult = {
-                    scope.launch { _fftResultFlow.emit(it) }
                     onFFTResult?.invoke(it)
+                },
+                onFFTResultByChannel = {
+                    scope.launch { _fftResultFlow.emit(it) }
                 },
                 stateStore = stateStore,
                 manager = manager
@@ -146,6 +177,7 @@ class HardwareBackendApi(
 
     override suspend fun stopStreaming(): Boolean {
         if (streamingJob == null && !stateStore.get().streaming) {
+            clearPreferredFlowReplayCaches()
             appendWarn("Stop stream requested, but no active stream was running for ${connectedBoardLabel("the current board")}.")
             return true
         }
@@ -154,6 +186,7 @@ class HardwareBackendApi(
         streamingJob?.cancel()
         streamingJob = null
         manager.stopStream()
+        clearPreferredFlowReplayCaches()
         appendInfo("Stream stopped for ${connectedBoardLabel("the current board")}.")
         return true
     }
@@ -208,6 +241,12 @@ class HardwareBackendApi(
             appendError("Sampling rate can only be changed for the synthetic board.")
             throw IllegalStateException("Can only set sampling rate for synthetic board")
         }
+
+        if (rate <= 0) {
+            appendError("Sampling rate must be greater than 0 Hz.")
+            throw IllegalArgumentException("Sampling rate must be greater than 0 Hz")
+        }
+
         stateStore.update { it.copy(samplingRateHz = rate) }
         appendInfo("Sampling rate set to $rate Hz.")
         return true
@@ -247,6 +286,13 @@ class HardwareBackendApi(
     private fun connectedBoardLabel(fallback: String): String {
         val boardId = connectedBoardId
         return if (boardId == null) fallback else boardId.name
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun clearPreferredFlowReplayCaches() {
+        _filteredFlow.resetReplayCache()
+        _bandPowersFlow.resetReplayCache()
+        _fftResultFlow.resetReplayCache()
     }
 
     private fun appendLog(severity: SystemLogSeverity, message: String) {

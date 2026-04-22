@@ -43,6 +43,37 @@ class BackendApiUnitTest : BackendApiTestSupport() {
         assertTrue(api.removeWave(addedIndex))
         assertEquals(initialSize, api.getState().waveSpecs.size)
     }
+
+    /** Verifies invalid remove indexes fail cleanly instead of throwing and do not mutate the stored wave list. */
+    @Test
+    fun `remove wave rejects invalid indexes without mutating state`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        assertTrue(api.addWave(standardWave()))
+        val before = api.getState().waveSpecs.toList()
+
+        assertFalse(api.removeWave(-1))
+        assertEquals(before, api.getState().waveSpecs)
+        assertFalse(api.removeWave(before.size))
+        assertEquals(before, api.getState().waveSpecs)
+        assertSystemLogContains(SystemLogSeverity.WARN, "Cannot remove wave at invalid index")
+    }
+
+    /** Verifies invalid edit indexes fail cleanly instead of throwing and preserve the stored wave configuration. */
+    @Test
+    fun `edit wave rejects invalid indexes without mutating state`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        val originalWave = standardWave()
+        assertTrue(api.addWave(originalWave))
+        val before = api.getState().waveSpecs.toList()
+        val replacement = originalWave.copy(amplitude = 9.0)
+
+        assertFalse(api.editWave(-1, replacement))
+        assertEquals(before, api.getState().waveSpecs)
+        assertFalse(api.editWave(before.size, replacement))
+        assertEquals(before, api.getState().waveSpecs)
+        assertSystemLogContains(SystemLogSeverity.WARN, "Cannot update wave at invalid index")
+    }
+
     /** Verifies channel toggles update the enabled channel list exposed through the API state. */
     @Test
     fun `channel toggles update the enabled channel list`() = runBlocking {
@@ -95,6 +126,33 @@ class BackendApiUnitTest : BackendApiTestSupport() {
         assertTrue(api.setSamplingRateHz(500))
         assertEquals(500, api.getState().samplingRateHz)
     }
+
+    /** Verifies synthetic boards reject a zero sampling rate so synthetic streaming cannot stall with no generated samples. */
+    @Test
+    fun `set sampling rate rejects zero for synthetic boards`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        assertTrue(api.setSamplingRateHz(500))
+
+        val failure = kotlin.runCatching { api.setSamplingRateHz(0) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(500, api.getState().samplingRateHz, "Rejected rates should not overwrite the previous valid synthetic rate")
+        assertSystemLogContains(SystemLogSeverity.ERROR, "Sampling rate must be greater than 0 Hz")
+    }
+
+    /** Verifies synthetic boards reject negative sampling rates and preserve the last valid configured rate. */
+    @Test
+    fun `set sampling rate rejects negative values for synthetic boards`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        assertTrue(api.setSamplingRateHz(500))
+
+        val failure = kotlin.runCatching { api.setSamplingRateHz(-128) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(500, api.getState().samplingRateHz, "Rejected rates should preserve the previous valid synthetic rate")
+        assertSystemLogContains(SystemLogSeverity.ERROR, "Sampling rate must be greater than 0 Hz")
+    }
+
     /** Verifies real boards reject sampling-rate changes and surface a precise error contract. */
     @Test
     fun `set sampling rate throws for non synthetic boards`() = runBlocking {

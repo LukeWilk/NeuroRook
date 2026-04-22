@@ -2,14 +2,23 @@ package io.github.lukewilk.hardware.api
 
 import io.github.lukewilk.shared.WaveSpec
 import io.github.lukewilk.shared.WaveType
+import io.github.lukewilk.shared.model.ChannelData
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Before
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+/**
+ * End-to-end synthetic-board workflow tests for `HardwareBackendApi`.
+ *
+ * These scenarios verify that preferred flows stay usable across a realistic connect/stream/stop lifecycle and that
+ * channel identity survives after additional channels are enabled mid-session.
+ */
 class BackendApiFunctionalTest {
     private lateinit var api: HardwareBackendApi
 
@@ -18,6 +27,7 @@ class BackendApiFunctionalTest {
         api = HardwareBackendApi()
     }
 
+    /** Exercises a full synthetic workflow and confirms all preferred flows preserve enabled channel ids. */
     @Test
     fun testFullSyntheticBoardWorkflow() {
         runBlocking {
@@ -48,27 +58,26 @@ class BackendApiFunctionalTest {
             assertTrue(api.startStreaming())
 
             // Check that we're receiving data using Flow-based API
-            val filtered = api.filteredFlow.first { it.isNotEmpty() }
-            assertTrue(filtered.isNotEmpty(), "Should receive filtered data from flow")
-            val bandPowers = api.bandPowersFlow.first { it.isNotEmpty() }
-            assertTrue(bandPowers.isNotEmpty(), "Should receive band powers from flow")
-            val fftResult = api.fftResultFlow.first { it.isNotEmpty() }
-            assertTrue(fftResult.isNotEmpty(), "Should receive FFT result from flow")
+            val filtered = api.filteredFlow.first { it.payload.isNotEmpty() }
+            assertTrue(filtered.payload.isNotEmpty(), "Should receive filtered data from flow")
+            val bandPowers = api.bandPowersFlow.first { it.payload.isNotEmpty() }
+            assertTrue(bandPowers.payload.isNotEmpty(), "Should receive band powers from flow")
+            val fftResult = api.fftResultFlow.first { it.payload.isNotEmpty() }
+            assertTrue(fftResult.payload.isNotEmpty(), "Should receive FFT result from flow")
 
             // 6. Enable two more channels
             assertTrue(api.enableChannel(1))
             assertTrue(api.enableChannel(2))
             assertTrue(api.getState().enabledChannels.containsAll(listOf(0, 1, 2)))
 
-            // Check that we're receiving data from all enabled channels
+            // Check that channel identities remain intact on interleaved flow emissions.
             val enabledChannels = api.getState().enabledChannels.toSet()
-            val receivedChannels = mutableSetOf<Int>()
-            repeat(10) {
-                val filtered = api.filteredFlow.first { it.isNotEmpty() }
-                receivedChannels.addAll(0 until filtered.size)
-                if (receivedChannels.containsAll(enabledChannels)) return@repeat
-            }
-            assertTrue(receivedChannels.containsAll(enabledChannels), "Should receive data from all enabled channels: $enabledChannels, got $receivedChannels")
+            val filteredChannels = awaitChannels(api.filteredFlow, enabledChannels) { it.isNotEmpty() }
+            val bandPowerChannels = awaitChannels(api.bandPowersFlow, enabledChannels) { it.isNotEmpty() }
+            val fftChannels = awaitChannels(api.fftResultFlow, enabledChannels) { it.isNotEmpty() }
+            assertEquals(enabledChannels, filteredChannels, "Filtered flow should preserve enabled channel ids")
+            assertEquals(enabledChannels, bandPowerChannels, "Band-power flow should preserve enabled channel ids")
+            assertEquals(enabledChannels, fftChannels, "FFT flow should preserve enabled channel ids")
 
             // 7. Stop streaming
             assertTrue(api.stopStreaming())
@@ -77,5 +86,23 @@ class BackendApiFunctionalTest {
             assertTrue(api.disconnect())
             assertFalse(api.getState().connected)
         }
+    }
+
+    /** Keeps one preferred-flow collector alive until every enabled channel has emitted, avoiding replay-only assertions. */
+    private suspend fun <T> awaitChannels(
+        flow: Flow<ChannelData<T>>,
+        expectedChannels: Set<Int>,
+        hasPayload: (T) -> Boolean
+    ): Set<Int> {
+        val seenChannels = mutableSetOf<Int>()
+        withTimeout(4_000) {
+            flow.first { emission ->
+                if (hasPayload(emission.payload)) {
+                    seenChannels += emission.channelId
+                }
+                seenChannels.containsAll(expectedChannels)
+            }
+        }
+        return seenChannels
     }
 }
