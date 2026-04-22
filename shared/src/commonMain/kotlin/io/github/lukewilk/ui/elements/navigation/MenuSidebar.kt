@@ -1,14 +1,24 @@
 package io.github.lukewilk.ui.elements.navigation
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +30,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
 internal fun menuSidebarWidth(expanded: Boolean, collapsedWidth: Int, expandedWidth: Int): Int =
@@ -33,9 +45,12 @@ internal fun menuSidebarSystemModeLabel(isSystemDark: Boolean?): String? = when 
 
 internal fun menuSidebarItemHasDivider(index: Int, lastIndex: Int): Boolean = index < lastIndex
 
-/** When a header slot is present, the nested [Menu] owns no duplicate title. */
+internal fun menuSidebarToggleContentDescription(expanded: Boolean): String =
+    if (expanded) "Collapse sidebar" else "Expand sidebar"
+
+/** The shell header row now owns the title, so the nested [Menu] never repeats it. */
 internal fun menuSidebarMenuTitleForMenu(hasHeaderContent: Boolean, title: String?): String? =
-    if (hasHeaderContent) null else title
+    null
 
 /**
  * Sidebar navigation shell that paints its host background behind the rounded surface so desktop window chrome never bleeds through.
@@ -48,7 +63,7 @@ fun MenuSidebar(
     collapsedWidth: Int = 56,
     expandedWidth: Int = 220,
     isSystemDark: Boolean? = null,
-    icons: List<String?> = emptyList(),
+    icons: List<ImageVector?> = emptyList(),
     selectedIndex: Int = -1,
     expanded: Boolean? = null,
     onExpandedChange: ((Boolean) -> Unit)? = null,
@@ -73,19 +88,41 @@ fun MenuSidebar(
                 .width(menuSidebarWidth(isExpanded, collapsedWidth, expandedWidth).dp)
                 .fillMaxHeight()
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                IconButton(
-                    onClick = { updateExpanded(!isExpanded) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    Text(
-                        text = "≡",
-                        style = MaterialTheme.typography.titleLarge
-                    )
+                    if (isExpanded && !hasHeaderContent && title != null) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    IconButton(
+                        onClick = { updateExpanded(!isExpanded) },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Outlined.Close else Icons.Outlined.Menu,
+                            contentDescription = menuSidebarToggleContentDescription(isExpanded),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
+                HorizontalDivider(thickness = 1.dp)
                 if (isExpanded) {
                     val systemModeLabel = menuSidebarSystemModeLabel(isSystemDark)
                     if (systemModeLabel != null) {

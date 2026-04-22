@@ -5,6 +5,7 @@ import io.github.lukewilk.ui.elements.navigation.menuItemHasDivider
 import io.github.lukewilk.ui.elements.navigation.menuShowsTitle
 import io.github.lukewilk.ui.elements.navigation.menuSidebarItemHasDivider
 import io.github.lukewilk.ui.elements.navigation.menuSidebarSystemModeLabel
+import io.github.lukewilk.ui.elements.navigation.menuSidebarToggleContentDescription
 import io.github.lukewilk.ui.elements.navigation.menuSidebarWidth
 import io.github.lukewilk.ui.elements.text.sectionTitleFontSizeSp
 import io.github.lukewilk.ui.elements.text.sectionTitleFontWeight
@@ -22,33 +23,50 @@ class CommonUiModelTest {
     fun `main scaffold state exposes menu order selection and placeholder state`() {
         val menuItems = mainScaffoldMenuItems()
         val defaultMenuItemsState = mainScaffoldUiState(
-            selectedTab = 2,
+            selectedTab = 6,
             isSidebarOpen = true,
             hasCustomHeader = false
         )
-        assertEquals(7, defaultMenuItemsState.menuItems.size)
-        assertEquals("Electrodes", defaultMenuItemsState.menuItems[2].label)
-        assertTrue(defaultMenuItemsState.menuItems[2].selected)
+        assertEquals(12, defaultMenuItemsState.menuItems.size)
+        assertEquals("Electrodes", defaultMenuItemsState.menuItems[6].label)
+        assertTrue(defaultMenuItemsState.menuItems[6].selected)
 
         val defaultUiState = mainScaffoldUiState(selectedTab = 0, isSidebarOpen = true, hasCustomHeader = false, menuItems = menuItems)
-        val customCollapsedUiState = mainScaffoldUiState(selectedTab = 3, isSidebarOpen = false, hasCustomHeader = true, menuItems = menuItems)
+        val customCollapsedUiState = mainScaffoldUiState(selectedTab = 7, isSidebarOpen = false, hasCustomHeader = true, menuItems = menuItems)
 
-        assertEquals(listOf("Hardware", "Protocols", "Electrodes", "Signals", "Graphs", "Goals", "Training"), menuItems.map { it.first })
+        assertEquals(
+            listOf(
+                "Hardware",
+                "Test Signal Noise",
+                "Raw Data",
+                "Protocols",
+                "Baseline",
+                "Aggregation & Reward",
+                "Electrodes",
+                "Signals",
+                "Graphs",
+                "Goals",
+                "Training",
+                "About"
+            ),
+            menuItems.map { it.label }
+        )
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 0, menuItems = menuItems))
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = -1, menuItems = menuItems))
-        assertEquals("Signals", mainScaffoldPlaceholderLabel(selectedTab = 3, menuItems = menuItems))
-        assertEquals("Training", mainScaffoldPlaceholderLabel(selectedTab = 6, menuItems = menuItems))
-        assertEquals("Protocols", mainScaffoldPlaceholderLabel(selectedTab = 1))
+        assertEquals("Protocols", mainScaffoldPlaceholderLabel(selectedTab = 3, menuItems = menuItems))
+        assertEquals("Training", mainScaffoldPlaceholderLabel(selectedTab = 10, menuItems = menuItems))
+        assertEquals("Test Signal Noise", mainScaffoldPlaceholderLabel(selectedTab = 1))
+        assertNull(mainScaffoldPlaceholderLabel(selectedTab = 11, menuItems = menuItems))
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 999, menuItems = menuItems))
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 1, menuItems = emptyList()))
         assertEquals(200, defaultUiState.sidebarWidth)
         assertEquals("Neuro Rook", defaultUiState.defaultHeaderTitle)
-        assertNull(defaultUiState.placeholderLabel)
+        assertEquals(MainScaffoldDestination.Hardware, defaultUiState.selectedDestination)
         assertTrue(defaultUiState.menuItems.first().selected)
-        assertEquals("Signals", customCollapsedUiState.placeholderLabel)
+        assertEquals(MainScaffoldDestination.Signals, customCollapsedUiState.selectedDestination)
         assertNull(customCollapsedUiState.defaultHeaderTitle)
         assertEquals(56, customCollapsedUiState.sidebarWidth)
-        assertTrue(customCollapsedUiState.menuItems[3].selected)
+        assertTrue(customCollapsedUiState.menuItems[7].selected)
     }
 
     @Test
@@ -64,6 +82,8 @@ class CommonUiModelTest {
         assertEquals("System: Dark mode", menuSidebarSystemModeLabel(true))
         assertEquals("System: Light mode", menuSidebarSystemModeLabel(false))
         assertNull(menuSidebarSystemModeLabel(null))
+        assertEquals("Collapse sidebar", menuSidebarToggleContentDescription(true))
+        assertEquals("Expand sidebar", menuSidebarToggleContentDescription(false))
         assertTrue(menuSidebarItemHasDivider(index = 0, lastIndex = 2))
         assertFalse(menuSidebarItemHasDivider(index = 2, lastIndex = 2))
     }

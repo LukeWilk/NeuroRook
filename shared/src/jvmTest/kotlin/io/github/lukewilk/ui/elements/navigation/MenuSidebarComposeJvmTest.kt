@@ -1,5 +1,8 @@
 package io.github.lukewilk.ui.elements.navigation
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
@@ -8,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -27,7 +31,7 @@ class MenuSidebarComposeJvmTest {
                     title = "App",
                     items = listOf("One" to {}, "Two" to {}),
                     isSystemDark = true,
-                    icons = listOf("1", "2")
+                    icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article)
                 )
             }
         }
@@ -44,7 +48,7 @@ class MenuSidebarComposeJvmTest {
                     title = "App",
                     items = listOf("One" to {}),
                     isSystemDark = false,
-                    icons = listOf("1")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
@@ -60,7 +64,7 @@ class MenuSidebarComposeJvmTest {
                     title = "App",
                     items = listOf("One" to {}),
                     isSystemDark = null,
-                    icons = listOf("1")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
@@ -77,7 +81,7 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "ShouldNotDuplicateInMenuColumn",
                     items = listOf("Alpha" to {}),
-                    icons = listOf("🔤"),
+                    icons = listOf(Icons.Outlined.Article),
                     headerContent = { Text("BrandedHeaderSlot") }
                 )
             }
@@ -95,7 +99,7 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "VisibleMenuTitle",
                     items = listOf("Row" to {}),
-                    icons = listOf("🔧")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
@@ -111,15 +115,15 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "App",
                     items = listOf("Hardware" to {}),
-                    icons = listOf("🔧")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
         onNodeWithText("Hardware").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Hardware").assertDoesNotExist()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Expand sidebar").performClick()
         waitForIdle()
         onNodeWithText("Hardware").assertIsDisplayed()
     }
@@ -133,17 +137,17 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "App",
                     items = listOf("Tab" to {}),
-                    icons = listOf("🔧"),
+                    icons = listOf(Icons.Outlined.Memory),
                     expanded = expanded,
                     onExpandedChange = { expanded = it }
                 )
             }
         }
         onNodeWithText("Tab").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Tab").assertDoesNotExist()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Expand sidebar").performClick()
         waitForIdle()
         onNodeWithText("Tab").assertIsDisplayed()
     }
@@ -156,14 +160,14 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "App",
                     items = listOf("Solo" to {}),
-                    icons = listOf("🔧"),
+                    icons = listOf(Icons.Outlined.Memory),
                     expanded = null,
                     onExpandedChange = null
                 )
             }
         }
         onNodeWithText("Solo").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Solo").assertDoesNotExist()
     }

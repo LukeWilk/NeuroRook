@@ -3,6 +3,7 @@ package io.github.lukewilk
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -98,11 +99,27 @@ class AppSmokeTest {
 
         onNodeWithText("Signals").performClick()
         onNodeWithText("Signals screen coming soon...").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         onNodeWithText("Signals").assertDoesNotExist()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Expand sidebar").performClick()
         onNodeWithText("Hardware").performClick()
         onNodeWithText("Device Selection").assertIsDisplayed()
+    }
+
+    @Test
+    fun `app shows attribution license and repository details on the about page`() = runComposeUiTest {
+        // Covers the screenshot-inspired About destination that documents the icon source together with the NeuroRook MIT license and repository.
+        setContent {
+            App(backendApi = null)
+        }
+
+        onNodeWithText("About").performClick()
+        onNodeWithText("About Neuro Rook").assertIsDisplayed()
+        onNodeWithText("Icon attribution").assertIsDisplayed()
+        onNodeWithText("NeuroRook").assertIsDisplayed()
+        onNodeWithText("Repository").assertIsDisplayed()
+        onNodeWithText("https://github.com/LukeWilk/NeuroRook").assertIsDisplayed().assertHasClickAction()
+        onNodeWithText("License: MIT License\nCopyright (c) 2026 Luke Wilk").assertIsDisplayed()
     }
 
     @Test

@@ -2,9 +2,12 @@ package io.github.lukewilk.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
 import kotlin.test.Test
 
@@ -69,8 +72,8 @@ class MainScaffoldTest {
     }
 
     @Test
-    fun `main scaffold collapses to the menu glyph and restores custom header content when reopened`() {
-        // Covers the custom-header collapsed branch so the scaffold swaps to the compact glyph and restores the caller header on reopen.
+    fun `main scaffold collapses to the icon toggle and restores custom header content when reopened`() {
+        // Covers the custom-header collapsed branch so the scaffold swaps to the compact toggle affordance and restores the caller header on reopen.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -86,9 +89,9 @@ class MainScaffoldTest {
             }
 
             onNodeWithText("Custom NeuroRook Header").assertIsDisplayed()
-            onNodeWithText("≡").assertIsDisplayed().performClick()
+            onNodeWithContentDescription("Collapse sidebar").assertIsDisplayed().performClick()
             onNodeWithText("Custom NeuroRook Header").assertDoesNotExist()
-            onNodeWithText("≡").assertIsDisplayed().performClick()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("Custom NeuroRook Header").assertIsDisplayed()
         }
     }
@@ -138,8 +141,8 @@ class MainScaffoldTest {
     }
 
     @Test
-    fun `main scaffold shows the collapsed menu glyph after closing the sidebar`() {
-        // Exercises the collapsed-sidebar header branch so the compact menu affordance stays visible.
+    fun `main scaffold shows the collapsed expand icon after closing the sidebar`() {
+        // Exercises the collapsed-sidebar header branch so the compact expand affordance stays visible.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -151,8 +154,8 @@ class MainScaffoldTest {
                 }
             }
 
-            onNodeWithText("≡").performClick()
-            onNodeWithText("≡").assertIsDisplayed()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed()
         }
     }
 
@@ -171,9 +174,9 @@ class MainScaffoldTest {
             }
 
             onNodeWithText("Neuro Rook").assertIsDisplayed()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Neuro Rook").assertDoesNotExist()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Expand sidebar").performClick()
             onNodeWithText("Neuro Rook").assertIsDisplayed()
         }
     }
@@ -194,11 +197,36 @@ class MainScaffoldTest {
 
             onNodeWithText("Protocols").performClick()
             onNodeWithText("Protocols screen coming soon...").assertIsDisplayed()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Protocols").assertDoesNotExist()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Expand sidebar").performClick()
             onNodeWithText("Hardware").performClick()
             onNodeWithText("Hardware screen content").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `main scaffold shows attribution license and repository details on the about page`() {
+        // Covers the dedicated About destination that documents icon attribution together with the NeuroRook repository and MIT license.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MainScaffold(
+                        hardwareScreen = {
+                            androidx.compose.material3.Text("Hardware screen content")
+                        }
+                    )
+                }
+            }
+
+            onNodeWithText("About").performScrollTo().performClick()
+            onNodeWithText("About Neuro Rook").assertIsDisplayed()
+            onNodeWithText("Icon attribution").assertIsDisplayed()
+            onNodeWithText("• Material Symbols / Material Icons by Google\n• Licensed under the Apache License 2.0\n• Source: https://fonts.google.com/icons").assertIsDisplayed()
+            onNodeWithText("NeuroRook").assertIsDisplayed()
+            onNodeWithText("Repository").assertIsDisplayed()
+            onNodeWithText(NEUROROOK_REPOSITORY_URL).assertIsDisplayed().assertHasClickAction()
+            onNodeWithText("License: MIT License\nCopyright (c) 2026 Luke Wilk").assertIsDisplayed()
         }
     }
 }

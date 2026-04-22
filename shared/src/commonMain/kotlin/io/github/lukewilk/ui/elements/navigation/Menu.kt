@@ -2,6 +2,7 @@ package io.github.lukewilk.ui.elements.navigation
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,7 +19,7 @@ fun Menu(
     title: String? = null,
     items: List<Pair<String, () -> Unit>>,
     modifier: Modifier = Modifier,
-    icons: List<String?> = emptyList(),
+    icons: List<ImageVector?> = emptyList(),
     selectedIndex: Int = -1
 ) {
     val menuItems = items.mapIndexed { index, (label, action) ->

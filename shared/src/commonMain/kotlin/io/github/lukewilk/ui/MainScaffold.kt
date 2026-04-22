@@ -5,6 +5,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.EmojiEvents
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,51 +27,85 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
 import io.github.lukewilk.ui.elements.navigation.MenuSidebar
 
-internal data class MainScaffoldMenuItem(
+internal enum class MainScaffoldDestination(
     val label: String,
-    val icon: String,
+    val icon: ImageVector
+) {
+    Hardware(label = "Hardware", icon = Icons.Outlined.Memory),
+    TestSignalNoise(label = "Test Signal Noise", icon = Icons.Outlined.ShowChart),
+    RawData(label = "Raw Data", icon = Icons.Outlined.Storage),
+    Protocols(label = "Protocols", icon = Icons.Outlined.Article),
+    Baseline(label = "Baseline", icon = Icons.Outlined.QueryStats),
+    AggregationAndReward(label = "Aggregation & Reward", icon = Icons.Outlined.EmojiEvents),
+    Electrodes(label = "Electrodes", icon = Icons.Outlined.Bolt),
+    Signals(label = "Signals", icon = Icons.Outlined.GraphicEq),
+    Graphs(label = "Graphs", icon = Icons.Outlined.BarChart),
+    Goals(label = "Goals", icon = Icons.Outlined.TrackChanges),
+    Training(label = "Training", icon = Icons.Outlined.School),
+    About(label = "About", icon = Icons.Outlined.Info)
+}
+
+internal data class MainScaffoldMenuItem(
+    val destination: MainScaffoldDestination,
     val selected: Boolean
-)
+) {
+    val label: String get() = destination.label
+    val icon: ImageVector get() = destination.icon
+}
 
 internal data class MainScaffoldUiState(
     val sidebarWidth: Int,
     val defaultHeaderTitle: String?,
     val menuItems: List<MainScaffoldMenuItem>,
-    val placeholderLabel: String?
+    val selectedDestination: MainScaffoldDestination?
 )
 
-internal fun mainScaffoldMenuItems(): List<Pair<String, String>> = listOf(
-    "Hardware" to "🔧",
-    "Protocols" to "📡",
-    "Electrodes" to "⚡",
-    "Signals" to "〰️",
-    "Graphs" to "📊",
-    "Goals" to "🎯",
-    "Training" to "🎓"
+internal fun mainScaffoldMenuItems(): List<MainScaffoldDestination> = listOf(
+    MainScaffoldDestination.Hardware,
+    MainScaffoldDestination.TestSignalNoise,
+    MainScaffoldDestination.RawData,
+    MainScaffoldDestination.Protocols,
+    MainScaffoldDestination.Baseline,
+    MainScaffoldDestination.AggregationAndReward,
+    MainScaffoldDestination.Electrodes,
+    MainScaffoldDestination.Signals,
+    MainScaffoldDestination.Graphs,
+    MainScaffoldDestination.Goals,
+    MainScaffoldDestination.Training,
+    MainScaffoldDestination.About
 )
 
-internal fun mainScaffoldPlaceholderLabel(selectedTab: Int, menuItems: List<Pair<String, String>> = mainScaffoldMenuItems()): String? {
-    if (selectedTab == 0) return null
+internal fun mainScaffoldSelectedDestination(
+    selectedTab: Int,
+    menuItems: List<MainScaffoldDestination> = mainScaffoldMenuItems()
+): MainScaffoldDestination? = menuItems.getOrNull(selectedTab)
 
-    val selectedItem = menuItems.getOrNull(selectedTab) ?: return null
-    return selectedItem.first
+internal fun mainScaffoldPlaceholderLabel(
+    selectedTab: Int,
+    menuItems: List<MainScaffoldDestination> = mainScaffoldMenuItems()
+): String? = when (val destination = mainScaffoldSelectedDestination(selectedTab, menuItems)) {
+    null,
+    MainScaffoldDestination.Hardware,
+    MainScaffoldDestination.About -> null
+    else -> destination.label
 }
 
 internal fun mainScaffoldUiState(
     selectedTab: Int,
     isSidebarOpen: Boolean,
     hasCustomHeader: Boolean,
-    menuItems: List<Pair<String, String>> = mainScaffoldMenuItems()
+    menuItems: List<MainScaffoldDestination> = mainScaffoldMenuItems()
 ): MainScaffoldUiState = MainScaffoldUiState(
     sidebarWidth = if (isSidebarOpen) 200 else 56,
     defaultHeaderTitle = if (isSidebarOpen && !hasCustomHeader) "Neuro Rook" else null,
-    menuItems = menuItems.mapIndexed { index, (label, icon) ->
-        MainScaffoldMenuItem(label = label, icon = icon, selected = index == selectedTab)
+    menuItems = menuItems.mapIndexed { index, destination ->
+        MainScaffoldMenuItem(destination = destination, selected = index == selectedTab)
     },
-    placeholderLabel = mainScaffoldPlaceholderLabel(selectedTab, menuItems)
+    selectedDestination = mainScaffoldSelectedDestination(selectedTab, menuItems)
 )
 
 internal fun mainScaffoldNavigationItems(
@@ -105,11 +152,10 @@ fun MainScaffold(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            val placeholderLabel = uiState.placeholderLabel
-            if (placeholderLabel == null) {
-                hardwareScreen()
-            } else {
-                PlaceholderScreen(placeholderLabel)
+            when (val selectedDestination = uiState.selectedDestination) {
+                null, MainScaffoldDestination.Hardware -> hardwareScreen()
+                MainScaffoldDestination.About -> AboutScreen()
+                else -> PlaceholderScreen(selectedDestination.label)
             }
         }
     }

@@ -1,5 +1,9 @@
 package io.github.lukewilk.ui.elements.navigation
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -9,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -27,11 +32,11 @@ class NavigationComponentsTest {
     fun `menu item ui state data class supports copy and destructuring`() {
         var clicks = 0
         val original = MenuItemUiState(label = "Hardware", onClick = { clicks += 1 })
-        val updated = original.copy(icon = "🔧", selected = true)
+        val updated = original.copy(icon = Icons.Outlined.Memory, selected = true)
         val (label, onClick, icon, selected) = updated
 
         assertEquals("Hardware", label)
-        assertEquals("🔧", icon)
+        assertEquals(Icons.Outlined.Memory, icon)
         assertTrue(selected)
 
         onClick()
@@ -65,13 +70,13 @@ class NavigationComponentsTest {
                 MaterialTheme {
                     var clicks by remember { mutableIntStateOf(0) }
                     androidx.compose.foundation.layout.Column {
-                        MenuItem(label = "Hardware", onClick = { clicks += 1 }, icon = "🔧", selected = true)
+                        MenuItem(label = "Hardware", onClick = { clicks += 1 }, icon = Icons.Outlined.Memory, selected = true)
                         androidx.compose.material3.Text("Clicks: $clicks")
                     }
                 }
             }
 
-            onNodeWithText("🔧").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
             onNodeWithText("Hardware").assertIsDisplayed().performClick()
             onNodeWithText("Clicks: 1").assertIsDisplayed()
         }
@@ -138,15 +143,15 @@ class NavigationComponentsTest {
                     Menu(
                         title = "Shell",
                         items = listOf("Hardware" to {}, "Protocols" to {}),
-                        icons = listOf("🔧", "📡"),
+                        icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article),
                         selectedIndex = 1
                     )
                 }
             }
 
             onNodeWithText("Shell").assertIsDisplayed()
-            onNodeWithText("🔧").assertIsDisplayed()
-            onNodeWithText("📡").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
             onNodeWithText("Protocols").assertIsDisplayed()
         }
     }
@@ -288,14 +293,14 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("≡").assertIsDisplayed()
+            onNodeWithContentDescription("Collapse sidebar").assertIsDisplayed()
             onNodeWithText("System: Dark mode").assertIsDisplayed()
             onNodeWithText("Navigation").assertDoesNotExist()
 
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("System: Dark mode").assertDoesNotExist()
 
-            onNodeWithText("≡").assertIsDisplayed().performClick()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("System: Dark mode").assertIsDisplayed()
         }
     }
@@ -310,7 +315,7 @@ class NavigationComponentsTest {
                         title = "Hidden Shell Title",
                         headerContent = { androidx.compose.material3.Text("Visible Shell Header") },
                         items = listOf("Hardware" to {}),
-                        icons = listOf("🔧"),
+                        icons = listOf(Icons.Outlined.Memory),
                         selectedIndex = 0
                     )
                 }
@@ -356,7 +361,7 @@ class NavigationComponentsTest {
                         title = null,
                         headerContent = { androidx.compose.material3.Text("Shell Header") },
                         items = listOf("Hardware" to {}, "Protocols" to {}),
-                        icons = listOf("🔧", "📡"),
+                        icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article),
                         selectedIndex = 1,
                         expanded = expanded,
                         onExpandedChange = { expanded = it }
@@ -365,13 +370,13 @@ class NavigationComponentsTest {
             }
 
             onNodeWithText("Shell Header").assertIsDisplayed()
-            onNodeWithText("🔧").assertIsDisplayed()
-            onNodeWithText("📡").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
             onNodeWithText("Protocols").assertIsDisplayed()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Shell Header").assertDoesNotExist()
             onNodeWithText("Protocols").assertDoesNotExist()
-            onNodeWithText("≡").assertIsDisplayed().performClick()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("Shell Header").assertIsDisplayed()
         }
     }
@@ -389,7 +394,7 @@ class NavigationComponentsTest {
                             "Beta" to {},
                             "Gamma" to {}
                         ),
-                        icons = listOf("🔤", "🔹")
+                        icons = listOf(Icons.Outlined.Article, Icons.Outlined.Info)
                     )
                 }
             }
@@ -417,7 +422,7 @@ class NavigationComponentsTest {
             }
 
             onNodeWithText("Pinned Open").assertIsDisplayed()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Pinned Open").assertIsDisplayed()
             onNodeWithText("Hardware").assertIsDisplayed()
         }
@@ -438,10 +443,10 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("≡").assertIsDisplayed()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed()
             onNodeWithText("Hidden While Collapsed").assertDoesNotExist()
             onNodeWithText("Hardware").assertDoesNotExist()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Expand sidebar").performClick()
             onNodeWithText("Hidden While Collapsed").assertDoesNotExist()
             onNodeWithText("Hardware").assertDoesNotExist()
         }
@@ -463,10 +468,10 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertDoesNotExist()
-            onNodeWithText("≡").assertIsDisplayed().performClick()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("Navigation").assertIsDisplayed()
             onNodeWithText("Signals").assertIsDisplayed()
         }
