@@ -20,6 +20,7 @@ import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.WaveSpec
 import io.github.lukewilk.shared.api.BackendApi
 import io.github.lukewilk.shared.model.BandPower
+import io.github.lukewilk.shared.model.ChannelData
 import io.github.lukewilk.shared.model.SerialPortSuggestion
 import io.github.lukewilk.shared.model.SystemLogEntry
 import io.github.lukewilk.shared.model.SystemLogSeverity
@@ -742,11 +743,10 @@ private class RecordingBackendApi(
     }
     override val hardwareStateFlow: StateFlow<HardwareState> = mutableHardwareStateFlow
     override val systemLogFlow: StateFlow<List<SystemLogEntry>> = MutableStateFlow(logs)
-    override val filteredFlow: Flow<DoubleArray> = emptyFlow()
-    override val bandPowersFlow: Flow<List<BandPower>> = emptyFlow()
-    override val fftResultFlow: Flow<Array<Pair<Double, Double>>> = emptyFlow()
+    override val filteredFlow: Flow<ChannelData<DoubleArray>> = emptyFlow()
+    override val bandPowersFlow: Flow<ChannelData<List<BandPower>>> = emptyFlow()
+    override val fftResultFlow: Flow<ChannelData<Array<Pair<Double, Double>>>> = emptyFlow()
     override fun setOnFilteredListener(listener: ((DoubleArray) -> Unit)?) = Unit
     override fun setOnBandPowersListener(listener: ((List<BandPower>) -> Unit)?) = Unit
     override fun setOnFFTResultListener(listener: ((Array<Pair<Double, Double>>) -> Unit)?) = Unit
 }
-
