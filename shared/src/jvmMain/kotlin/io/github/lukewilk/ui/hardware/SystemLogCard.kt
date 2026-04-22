@@ -35,6 +35,7 @@ import io.github.lukewilk.shared.model.SystemLogSeverity
 import io.github.lukewilk.ui.elements.cards.CardHeader
 import io.github.lukewilk.ui.elements.cards.PanelCard
 import io.github.lukewilk.ui.elements.layout.VerticalSpacer
+import io.github.lukewilk.ui.elements.scroll.VerticalScrollCueBox
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -96,22 +97,27 @@ fun SystemLogCard(
                     fontStyle = FontStyle.Italic
                 )
             } else {
-                SelectionContainer {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(scrollState)
-                    ) {
-                        newestFirstLogs.forEach { log ->
-                            Text(
-                                text = systemLogLineText(log),
-                                color = severityColorFor(MaterialTheme.colorScheme, log.severity),
-                                fontSize = 13.sp,
-                                fontFamily = systemLogFontFamily,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                            )
+                VerticalScrollCueBox(
+                    scrollState = scrollState,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    SelectionContainer {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(scrollState)
+                        ) {
+                            newestFirstLogs.forEach { log ->
+                                Text(
+                                    text = systemLogLineText(log),
+                                    color = severityColorFor(MaterialTheme.colorScheme, log.severity),
+                                    fontSize = 13.sp,
+                                    fontFamily = systemLogFontFamily,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                )
+                            }
                         }
                     }
                 }

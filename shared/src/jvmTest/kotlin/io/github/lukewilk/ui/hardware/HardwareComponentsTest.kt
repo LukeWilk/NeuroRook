@@ -9,6 +9,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -400,8 +401,17 @@ class HardwareComponentsTest {
                 }
             }
 
+            waitForIdle()
+            onNodeWithContentDescription("More content below", useUnmergedTree = true).assertIsDisplayed()
+            kotlin.test.assertFalse(
+                runCatching {
+                    onNodeWithContentDescription("More content above", useUnmergedTree = true).assertIsDisplayed()
+                    true
+                }.getOrDefault(false)
+            )
             onNodeWithText("INFO • Log entry 40", substring = true).assertIsDisplayed()
             onNodeWithText("INFO • Log entry 0", substring = true).performScrollTo().assertIsDisplayed()
+            onNodeWithContentDescription("More content above", useUnmergedTree = true).assertIsDisplayed()
         }
     }
 
