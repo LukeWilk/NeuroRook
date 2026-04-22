@@ -43,6 +43,37 @@ class BackendApiUnitTest : BackendApiTestSupport() {
         assertTrue(api.removeWave(addedIndex))
         assertEquals(initialSize, api.getState().waveSpecs.size)
     }
+
+    /** Verifies invalid remove indexes fail cleanly instead of throwing and do not mutate the stored wave list. */
+    @Test
+    fun `remove wave rejects invalid indexes without mutating state`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        assertTrue(api.addWave(standardWave()))
+        val before = api.getState().waveSpecs.toList()
+
+        assertFalse(api.removeWave(-1))
+        assertEquals(before, api.getState().waveSpecs)
+        assertFalse(api.removeWave(before.size))
+        assertEquals(before, api.getState().waveSpecs)
+        assertSystemLogContains(SystemLogSeverity.WARN, "Cannot remove wave at invalid index")
+    }
+
+    /** Verifies invalid edit indexes fail cleanly instead of throwing and preserve the stored wave configuration. */
+    @Test
+    fun `edit wave rejects invalid indexes without mutating state`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        val originalWave = standardWave()
+        assertTrue(api.addWave(originalWave))
+        val before = api.getState().waveSpecs.toList()
+        val replacement = originalWave.copy(amplitude = 9.0)
+
+        assertFalse(api.editWave(-1, replacement))
+        assertEquals(before, api.getState().waveSpecs)
+        assertFalse(api.editWave(before.size, replacement))
+        assertEquals(before, api.getState().waveSpecs)
+        assertSystemLogContains(SystemLogSeverity.WARN, "Cannot update wave at invalid index")
+    }
+
     /** Verifies channel toggles update the enabled channel list exposed through the API state. */
     @Test
     fun `channel toggles update the enabled channel list`() = runBlocking {

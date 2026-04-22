@@ -104,6 +104,11 @@ class HardwareBackendApi(
     }
 
     override suspend fun removeWave(waveIndex: Int): Boolean {
+        if (waveIndex !in stateStore.get().waveSpecs.indices) {
+            appendWarn("Cannot remove wave at invalid index $waveIndex.")
+            return false
+        }
+
         stateStore.update { st ->
             st.copy(waveSpecs = st.waveSpecs.toMutableList().apply { removeAt(waveIndex) })
         }
@@ -112,6 +117,11 @@ class HardwareBackendApi(
     }
 
     override suspend fun editWave(waveIndex: Int, wave: WaveSpec): Boolean {
+        if (waveIndex !in stateStore.get().waveSpecs.indices) {
+            appendWarn("Cannot update wave at invalid index $waveIndex.")
+            return false
+        }
+
         stateStore.update { st ->
             st.copy(waveSpecs = st.waveSpecs.toMutableList().apply { set(waveIndex, wave) })
         }
