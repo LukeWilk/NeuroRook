@@ -87,6 +87,7 @@ class HardwareBackendApi(
     override suspend fun disconnect(): Boolean {
         appendInfo("Disconnect requested for ${connectedBoardLabel("current board")}.")
         manager.close()
+        streamingJob = null
         connectedBoardId = null
         appendInfo("Disconnected from board.")
         return true
