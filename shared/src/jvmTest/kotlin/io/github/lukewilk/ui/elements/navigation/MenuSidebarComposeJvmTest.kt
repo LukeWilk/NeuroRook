@@ -61,7 +61,7 @@ class MenuSidebarComposeJvmTest {
 
     @Test
     fun `menu sidebar omits system mode line when isSystemDark is null`() = runComposeUiTest {
-        // Covers the absence case so callers can omit the environment label entirely.
+        // Covers the absence case so callers can omit the environment label entirely while the shell stays titleless.
         setContent {
             MaterialTheme {
                 MenuSidebar(
@@ -72,14 +72,14 @@ class MenuSidebarComposeJvmTest {
                 )
             }
         }
-        onNodeWithText("App").assertIsDisplayed()
+        onNodeWithText("App").assertDoesNotExist()
         onNodeWithText("System: Dark mode").assertDoesNotExist()
         onNodeWithText("System: Light mode").assertDoesNotExist()
     }
 
     @Test
     fun `menu sidebar uses header slot divider and suppresses duplicate menu title`() = runComposeUiTest {
-        // Verifies branded header content replaces the menu title instead of rendering duplicate headings.
+        // Verifies branded header content still renders while the shell itself stays titleless.
         setContent {
             MaterialTheme {
                 MenuSidebar(
@@ -90,14 +90,14 @@ class MenuSidebarComposeJvmTest {
                 )
             }
         }
+        onNodeWithText("ShouldNotDuplicateInMenuColumn").assertDoesNotExist()
         onNodeWithText("BrandedHeaderSlot").assertIsDisplayed()
         onNodeWithText("Alpha").assertIsDisplayed()
-        onNodeWithText("ShouldNotDuplicateInMenuColumn").assertDoesNotExist()
     }
 
     @Test
-    fun `menu sidebar passes title into menu when header content is absent`() = runComposeUiTest {
-        // Verifies the menu title remains visible when no external header slot is provided.
+    fun `menu sidebar keeps items visible without rendering the optional title`() = runComposeUiTest {
+        // Verifies callers can still pass a title string without reintroducing header text into the shell.
         setContent {
             MaterialTheme {
                 MenuSidebar(
@@ -107,7 +107,7 @@ class MenuSidebarComposeJvmTest {
                 )
             }
         }
-        onNodeWithText("VisibleMenuTitle").assertIsDisplayed()
+        onNodeWithText("VisibleMenuTitle").assertDoesNotExist()
         onNodeWithText("Row").assertIsDisplayed()
     }
 

@@ -2,13 +2,13 @@ package io.github.lukewilk.ui.elements.navigation
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -50,8 +50,11 @@ internal fun menuSidebarToggleContentDescription(expanded: Boolean): String =
 internal fun menuSidebarToggleIcon(expanded: Boolean): ImageVector =
     if (expanded) Icons.Outlined.ChevronLeft else Icons.Outlined.ChevronRight
 
+internal fun menuSidebarToggleAlignment(expanded: Boolean, title: String?): Alignment =
+    if (expanded) Alignment.Center else Alignment.CenterEnd
+
 /** The shell header row now owns the title, so the nested [Menu] never repeats it. */
-internal fun menuSidebarMenuTitleForMenu(hasHeaderContent: Boolean, title: String?): String? =
+internal fun menuSidebarMenuTitleForMenu(): String? =
     null
 
 /** Sidebar navigation shell for the desktop scaffold. */
@@ -98,27 +101,17 @@ fun MenuSidebar(
                         .fillMaxWidth()
                         .verticalScroll(scrollState)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
-                        if (isExpanded && !hasHeaderContent && title != null) {
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
                         IconButton(
                             onClick = { updateExpanded(!isExpanded) },
                             colors = IconButtonDefaults.iconButtonColors(
                                 contentColor = MaterialTheme.colorScheme.onSurface
-                            )
+                            ),
+                            modifier = Modifier.align(menuSidebarToggleAlignment(isExpanded, title))
                         ) {
                             Icon(
                                 imageVector = menuSidebarToggleIcon(isExpanded),
@@ -142,7 +135,7 @@ fun MenuSidebar(
                             HorizontalDivider(thickness = 1.dp)
                         }
                         Menu(
-                            title = menuSidebarMenuTitleForMenu(hasHeaderContent, title),
+                            title = menuSidebarMenuTitleForMenu(),
                             items = items,
                             icons = icons,
                             selectedIndex = selectedIndex

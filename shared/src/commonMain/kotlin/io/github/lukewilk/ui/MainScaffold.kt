@@ -59,7 +59,6 @@ internal data class MainScaffoldMenuItem(
 
 internal data class MainScaffoldUiState(
     val sidebarWidth: Int,
-    val defaultHeaderTitle: String?,
     val menuItems: List<MainScaffoldMenuItem>,
     val selectedDestination: MainScaffoldDestination?
 )
@@ -97,11 +96,9 @@ internal fun mainScaffoldPlaceholderLabel(
 internal fun mainScaffoldUiState(
     selectedTab: Int,
     isSidebarOpen: Boolean,
-    hasCustomHeader: Boolean,
     menuItems: List<MainScaffoldDestination> = mainScaffoldMenuItems()
 ): MainScaffoldUiState = MainScaffoldUiState(
-    sidebarWidth = if (isSidebarOpen) 200 else 56,
-    defaultHeaderTitle = if (isSidebarOpen && !hasCustomHeader) "Neuro Rook" else null,
+    sidebarWidth = if (isSidebarOpen) 220 else 56,
     menuItems = menuItems.mapIndexed { index, destination ->
         MainScaffoldMenuItem(destination = destination, selected = index == selectedTab)
     },
@@ -128,7 +125,6 @@ fun MainScaffold(
         mainScaffoldUiState(
             selectedTab = selectedTab,
             isSidebarOpen = isSidebarOpen,
-            hasCustomHeader = headerContent != null,
             menuItems = menuItems
         )
     }
@@ -136,11 +132,11 @@ fun MainScaffold(
 
     Row(Modifier.fillMaxSize()) {
         MenuSidebar(
-            title = uiState.defaultHeaderTitle,
+            title = null,
             items = navigationItems,
             modifier = Modifier.fillMaxHeight(),
             collapsedWidth = 56,
-            expandedWidth = 200,
+            expandedWidth = 220,
             icons = uiState.menuItems.map { it.icon },
             selectedIndex = uiState.menuItems.indexOfFirst { it.selected },
             expanded = isSidebarOpen,

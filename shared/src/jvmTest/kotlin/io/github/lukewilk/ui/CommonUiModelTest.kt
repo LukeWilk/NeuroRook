@@ -3,12 +3,14 @@ package io.github.lukewilk.ui
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import io.github.lukewilk.ui.elements.scroll.verticalScrollCueContentDescription
 import io.github.lukewilk.ui.elements.scroll.verticalScrollCueVisibility
 import io.github.lukewilk.ui.elements.navigation.menuItemHasDivider
 import io.github.lukewilk.ui.elements.navigation.menuShowsTitle
 import io.github.lukewilk.ui.elements.navigation.menuSidebarItemHasDivider
+import io.github.lukewilk.ui.elements.navigation.menuSidebarToggleAlignment
 import io.github.lukewilk.ui.elements.navigation.menuSidebarToggleIcon
 import io.github.lukewilk.ui.elements.navigation.menuSidebarSystemModeLabel
 import io.github.lukewilk.ui.elements.navigation.menuSidebarToggleContentDescription
@@ -31,14 +33,13 @@ class CommonUiModelTest {
         val defaultMenuItemsState = mainScaffoldUiState(
             selectedTab = 6,
             isSidebarOpen = true,
-            hasCustomHeader = false
         )
         assertEquals(12, defaultMenuItemsState.menuItems.size)
         assertEquals("Electrodes", defaultMenuItemsState.menuItems[6].label)
         assertTrue(defaultMenuItemsState.menuItems[6].selected)
 
-        val defaultUiState = mainScaffoldUiState(selectedTab = 0, isSidebarOpen = true, hasCustomHeader = false, menuItems = menuItems)
-        val customCollapsedUiState = mainScaffoldUiState(selectedTab = 7, isSidebarOpen = false, hasCustomHeader = true, menuItems = menuItems)
+        val defaultUiState = mainScaffoldUiState(selectedTab = 0, isSidebarOpen = true, menuItems = menuItems)
+        val customCollapsedUiState = mainScaffoldUiState(selectedTab = 7, isSidebarOpen = false, menuItems = menuItems)
 
         assertEquals(
             listOf(
@@ -65,12 +66,10 @@ class CommonUiModelTest {
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 11, menuItems = menuItems))
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 999, menuItems = menuItems))
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 1, menuItems = emptyList()))
-        assertEquals(200, defaultUiState.sidebarWidth)
-        assertEquals("Neuro Rook", defaultUiState.defaultHeaderTitle)
+        assertEquals(220, defaultUiState.sidebarWidth)
         assertEquals(MainScaffoldDestination.Hardware, defaultUiState.selectedDestination)
         assertTrue(defaultUiState.menuItems.first().selected)
         assertEquals(MainScaffoldDestination.Signals, customCollapsedUiState.selectedDestination)
-        assertNull(customCollapsedUiState.defaultHeaderTitle)
         assertEquals(56, customCollapsedUiState.sidebarWidth)
         assertTrue(customCollapsedUiState.menuItems[7].selected)
     }
@@ -92,6 +91,9 @@ class CommonUiModelTest {
         assertEquals("Expand sidebar", menuSidebarToggleContentDescription(false))
         assertEquals(Icons.Outlined.ChevronLeft, menuSidebarToggleIcon(expanded = true))
         assertEquals(Icons.Outlined.ChevronRight, menuSidebarToggleIcon(expanded = false))
+        assertEquals(Alignment.Center, menuSidebarToggleAlignment(expanded = true, title = null))
+        assertEquals(Alignment.Center, menuSidebarToggleAlignment(expanded = true, title = "Navigation"))
+        assertEquals(Alignment.CenterEnd, menuSidebarToggleAlignment(expanded = false, title = null))
         assertTrue(menuSidebarItemHasDivider(index = 0, lastIndex = 2))
         assertFalse(menuSidebarItemHasDivider(index = 2, lastIndex = 2))
     }

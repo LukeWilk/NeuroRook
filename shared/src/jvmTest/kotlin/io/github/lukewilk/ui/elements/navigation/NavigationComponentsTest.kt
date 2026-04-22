@@ -217,8 +217,8 @@ class NavigationComponentsTest {
     }
 
     @Test
-    fun `menu sidebar renders system mode title and items`() {
-        // Verifies the sidebar surfaces its optional system-mode hint alongside the provided title and entries.
+    fun `menu sidebar renders system mode hint and items without a header title`() {
+        // Verifies the sidebar surfaces its optional system-mode hint alongside entries while the chevron row stays titleless.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -234,14 +234,14 @@ class NavigationComponentsTest {
             }
 
             onNodeWithText("System: Dark mode").assertIsDisplayed()
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertIsDisplayed()
         }
     }
 
     @Test
     fun `menu sidebar renders the light mode hint when requested`() {
-        // Covers the alternate system-mode label so both light and dark sidebar hints stay wired correctly.
+        // Covers the alternate system-mode label so both light and dark sidebar hints stay wired correctly without showing header text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -254,13 +254,13 @@ class NavigationComponentsTest {
             }
 
             onNodeWithText("System: Light mode").assertIsDisplayed()
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithText("Navigation").assertDoesNotExist()
         }
     }
 
     @Test
     fun `menu sidebar omits the system mode hint when no system theme is provided`() {
-        // Verifies the nullable system-theme branch leaves the sidebar title and items intact without rendering a hint line.
+        // Verifies the nullable system-theme branch leaves the sidebar items intact without rendering a hint line or title text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -272,7 +272,7 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Hardware").assertIsDisplayed()
             onNodeWithText("System: Dark mode").assertDoesNotExist()
             onNodeWithText("System: Light mode").assertDoesNotExist()
@@ -307,7 +307,7 @@ class NavigationComponentsTest {
 
     @Test
     fun `menu sidebar omits the menu title when header content owns the heading slot`() {
-        // Covers the Menu(title = if (headerContent == null) title else null) branch so navigation rows do not duplicate a hidden shell title.
+        // Verifies branded header content owns the visible heading while the chevron row stays titleless.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -321,15 +321,15 @@ class NavigationComponentsTest {
                 }
             }
 
+            onNodeWithText("Hidden Shell Title").assertDoesNotExist()
             onNodeWithText("Visible Shell Header").assertIsDisplayed()
             onNodeWithText("Hardware").assertIsDisplayed()
-            onNodeWithText("Hidden Shell Title").assertDoesNotExist()
         }
     }
 
     @Test
     fun `menu sidebar shows custom header and divider without system hint when theme is unknown`() {
-        // Covers the expanded branch where systemModeLabel is null but headerContent is non-null, so the divider path still runs.
+        // Covers the expanded branch where systemModeLabel is null and the custom header renders below a titleless toggle row.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -421,9 +421,9 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("Pinned Open").assertIsDisplayed()
+            onNodeWithText("Pinned Open").assertDoesNotExist()
             onNodeWithContentDescription("Collapse sidebar").performClick()
-            onNodeWithText("Pinned Open").assertIsDisplayed()
+            onNodeWithText("Pinned Open").assertDoesNotExist()
             onNodeWithText("Hardware").assertIsDisplayed()
         }
     }
@@ -454,7 +454,7 @@ class NavigationComponentsTest {
 
     @Test
     fun `menu sidebar collapses to the menu glyph and can be expanded again`() {
-        // Covers the collapsed-width branch so the sidebar can hide and then restore its title and items deterministically.
+        // Covers the collapsed-width branch so the sidebar can hide and then restore its items deterministically without header text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -472,7 +472,7 @@ class NavigationComponentsTest {
             onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertDoesNotExist()
             onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertIsDisplayed()
         }
     }

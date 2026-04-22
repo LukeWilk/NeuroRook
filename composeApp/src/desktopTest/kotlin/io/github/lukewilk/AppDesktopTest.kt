@@ -7,9 +7,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /**
  * Desktop-facing behavior tests for the shared root app composable.
@@ -31,7 +33,7 @@ class AppDesktopTest {
             }
         }
         onNodeWithText("CustomShell").assertIsDisplayed()
-        onNodeWithText("Neuro Rook").assertDoesNotExist()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
     }
 
     fun `default app scaffold renderer wires hardware body and header slots`() = runComposeUiTest {
@@ -48,7 +50,7 @@ class AppDesktopTest {
     }
 
     @Test
-    fun `default app scaffold renderer uses main scaffold header fallback when header content is null`() = runComposeUiTest {
+    fun `default app scaffold renderer keeps the main scaffold titleless when header content is null`() = runComposeUiTest {
         setContent {
             MaterialTheme {
                 defaultAppScaffoldRenderer(
@@ -58,7 +60,7 @@ class AppDesktopTest {
             }
         }
         onNodeWithText("HardwareBodyOnly").assertIsDisplayed()
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -68,7 +70,7 @@ class AppDesktopTest {
                 App(backendApi = null, colorScheme = lightColorScheme(primary = Color.Red))
             }
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 

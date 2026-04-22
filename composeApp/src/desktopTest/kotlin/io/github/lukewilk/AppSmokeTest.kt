@@ -5,6 +5,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -43,21 +44,22 @@ import org.junit.Assume.assumeTrue
 class AppSmokeTest {
     @Test
     fun `app uses the default null backend parameter when callers omit it`() = runComposeUiTest {
-        // Covers the default-argument entry path so desktop callers can render the app without supplying a backend.
+        // Covers the default-argument entry path so desktop callers can render the app without supplying a backend or fallback title text.
         setContent {
             App()
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
     @Test
-    fun `app renders the shared scaffold header and default hardware tab`() = runComposeUiTest {
+    fun `app renders the shared scaffold chrome and default hardware tab`() = runComposeUiTest {
         // Verifies the desktop host can render the shared root UI without a backend implementation.
         setContent {
             App(backendApi = null)
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
+        onNodeWithContentDescription("Collapse sidebar").assertIsDisplayed()
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
@@ -67,7 +69,7 @@ class AppSmokeTest {
         setContent {
             App(backendApi = null, colorScheme = lightColorScheme(), headerContent = null)
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
@@ -77,7 +79,7 @@ class AppSmokeTest {
         setContent {
             App(backendApi = FakeAppBackendApi())
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
@@ -125,7 +127,7 @@ class AppSmokeTest {
 
     @Test
     fun `app renders custom desktop header content when supplied`() = runComposeUiTest {
-        // Covers the optional headerContent path used by the desktop host sidebar.
+        // Covers the optional headerContent path while keeping the shared scaffold titleless.
         setContent {
             App(
                 backendApi = null,
@@ -133,6 +135,7 @@ class AppSmokeTest {
             )
         }
 
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 

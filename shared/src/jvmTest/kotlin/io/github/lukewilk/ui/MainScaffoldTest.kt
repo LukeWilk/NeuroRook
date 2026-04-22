@@ -30,8 +30,8 @@ class MainScaffoldTest {
     }
 
     @Test
-    fun `main scaffold renders the built in Neuro Rook header by default`() {
-        // Covers the null header-content branch so the scaffold falls back to its own branded title.
+    fun `main scaffold renders the default shell without a built in title`() {
+        // Covers the null header-content branch so the scaffold exposes the collapse toggle without rendering fallback title text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -43,14 +43,15 @@ class MainScaffoldTest {
                 }
             }
 
-            onNodeWithText("Neuro Rook").assertIsDisplayed()
+            onNodeWithContentDescription("Collapse sidebar").assertIsDisplayed()
+            onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithText("Hardware screen content").assertIsDisplayed()
         }
     }
 
     @Test
     fun `main scaffold renders custom header content and the hardware screen slot`() {
-        // Verifies the shared scaffold renders caller-provided header and content without any platform backend.
+        // Verifies the shared scaffold renders caller-provided header content without reintroducing fallback title text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -65,6 +66,7 @@ class MainScaffoldTest {
                 }
             }
 
+            onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithText("Custom NeuroRook Header").assertIsDisplayed()
             onNodeWithText("Hardware screen content").assertIsDisplayed()
             onNodeWithText("Hardware").assertIsDisplayed()
@@ -117,7 +119,7 @@ class MainScaffoldTest {
 
     @Test
     fun `main scaffold keeps custom header visible while placeholders replace the hardware pane`() {
-        // Exercises remember(selectedTab, isSidebarOpen, headerContent) together with the hardware vs placeholder branch when callers supply headerContent.
+        // Exercises remember(selectedTab, isSidebarOpen, headerContent) while preserving custom header content without fallback branding.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -132,9 +134,11 @@ class MainScaffoldTest {
                 }
             }
 
+            onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithText("Branded Shell Header").assertIsDisplayed()
             onNodeWithText("Graphs").performClick()
             onNodeWithText("Graphs screen coming soon...").assertIsDisplayed()
+            onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithText("Branded Shell Header").assertIsDisplayed()
             onNodeWithText("Hardware screen content").assertDoesNotExist()
         }
@@ -160,8 +164,8 @@ class MainScaffoldTest {
     }
 
     @Test
-    fun `main scaffold restores the Neuro Rook sidebar title after collapsing and reopening`() {
-        // Covers the default-header title branch when isSidebarOpen flips false then true without custom header content.
+    fun `main scaffold keeps the default header title absent after collapsing and reopening`() {
+        // Covers the titleless default-header branch when isSidebarOpen flips false then true without custom header content.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -173,11 +177,12 @@ class MainScaffoldTest {
                 }
             }
 
-            onNodeWithText("Neuro Rook").assertIsDisplayed()
+            onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithContentDescription("Expand sidebar").performClick()
-            onNodeWithText("Neuro Rook").assertIsDisplayed()
+            onNodeWithText("Neuro Rook").assertDoesNotExist()
+            onNodeWithText("Hardware screen content").assertIsDisplayed()
         }
     }
 
