@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import io.github.lukewilk.shared.model.SerialPortSuggestion
@@ -369,13 +371,89 @@ class HardwareComponentsTest {
                 MaterialTheme {
                     SystemLogCard(
                         logs = listOf(SystemLogEntry(9L, SystemLogSeverity.INFO, "Explicit modifier")),
-                        modifier = androidx.compose.ui.Modifier
+                        modifier = Modifier
                     )
                 }
             }
 
             onNodeWithText("INFO • Explicit modifier", substring = true).assertIsDisplayed()
         }
+    }
+
+    @Test
+    fun `system log card keeps older entries reachable through vertical scrolling`() {
+        // Confirms the bounded log surface stays scrollable so older entries remain reachable in long histories.
+        val logs = (0..40).map { index ->
+            SystemLogEntry(
+                timestampEpochMillis = index.toLong(),
+                severity = SystemLogSeverity.INFO,
+                message = "Log entry $index"
+            )
+        }
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Box(Modifier.size(600.dp, 320.dp)) {
+                        SystemLogCard(logs = logs)
+                    }
+                }
+            }
+
+            onNodeWithText("INFO • Log entry 40", substring = true).assertIsDisplayed()
+            onNodeWithText("INFO • Log entry 0", substring = true).performScrollTo().assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `system log card copies newest-first log history when copy all is pressed`() {
+        // Verifies the copy action exposes the same newest-first history users see in the scrollable log surface.
+        val logs = listOf(
+            SystemLogEntry(1L, SystemLogSeverity.INFO, "Startup complete"),
+            SystemLogEntry(2L, SystemLogSeverity.WARN, "Voltage dip"),
+            SystemLogEntry(3L, SystemLogSeverity.ERROR, "Board disconnected")
+        )
+        var copiedText: String? = null
+
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    SystemLogCard(
+                        logs = logs,
+                        onCopyAllLogs = { copiedText = it }
+                    )
+                }
+            }
+
+            onNodeWithText("Copy all").assertIsDisplayed().performClick()
+        }
+
+        val copiedLogText = copiedText ?: error("Expected the system log copy action to provide text.")
+        val newestEntryIndex = copiedLogText.indexOf("ERROR • Board disconnected")
+        val middleEntryIndex = copiedLogText.indexOf("WARN • Voltage dip")
+        val oldestEntryIndex = copiedLogText.indexOf("INFO • Startup complete")
+
+        assertEquals(3, copiedLogText.count { it == '\n' } + 1)
+        kotlin.test.assertTrue(newestEntryIndex in 0 until middleEntryIndex)
+        kotlin.test.assertTrue(middleEntryIndex in 0 until oldestEntryIndex)
+    }
+
+    @Test
+    fun `system log helpers keep monospace styling and newline separated clipboard payloads`() {
+        // Locks in the copy-friendly log typography and newline-separated export text used by the copy action.
+        val logs = listOf(
+            SystemLogEntry(11L, SystemLogSeverity.INFO, "First"),
+            SystemLogEntry(12L, SystemLogSeverity.ERROR, "Second")
+        )
+
+        assertEquals(FontFamily.Monospace, systemLogFontFamily)
+
+        val clipboardText = systemLogClipboardText(logs)
+        val copiedLines = clipboardText.lines()
+
+        assertEquals(2, copiedLines.size)
+        kotlin.test.assertTrue(copiedLines[0].contains("ERROR • Second"))
+        kotlin.test.assertTrue(copiedLines[1].contains("INFO • First"))
     }
 
     @Test

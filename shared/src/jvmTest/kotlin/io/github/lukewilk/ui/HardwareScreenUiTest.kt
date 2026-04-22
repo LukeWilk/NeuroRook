@@ -104,7 +104,7 @@ class HardwareScreenUiTest {
             }
 
             onNodeWithText("A likely board connection was preselected for you. You can choose any detected port or type a custom path.").assertIsDisplayed()
-            onNodeWithText("System Log").assertIsDisplayed()
+            onNodeWithText("System Log").performScrollTo().assertIsDisplayed()
             onNodeWithText("Connect").assertIsDisplayed()
         }
     }

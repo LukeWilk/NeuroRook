@@ -2,24 +2,32 @@ package io.github.lukewilk.ui.hardware
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.lukewilk.shared.model.SystemLogEntry
@@ -32,23 +40,39 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun SystemLogCard(logs: List<SystemLogEntry>, modifier: Modifier = Modifier) {
+fun SystemLogCard(
+    logs: List<SystemLogEntry>,
+    modifier: Modifier = Modifier,
+    onCopyAllLogs: ((String) -> Unit)? = null
+) {
     val isEmpty = logs.isEmpty()
     val newestFirstLogs = remember(logs) { logs.asReversed() }
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
+    val copyAllLogs = onCopyAllLogs ?: rememberClipboardCopyHandler()
 
     LaunchedEffect(newestFirstLogs.size) {
         if (newestFirstLogs.isNotEmpty()) {
-            listState.scrollToItem(0)
+            scrollState.scrollTo(0)
         }
     }
 
     PanelCard(modifier = modifier) {
-        CardHeader(
-            icon = "\uD83D\uDCC4",
-            iconColor = MaterialTheme.colorScheme.tertiary,
-            title = "System Log"
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CardHeader(
+                icon = "\uD83D\uDCC4",
+                iconColor = MaterialTheme.colorScheme.tertiary,
+                title = "System Log"
+            )
+            if (!isEmpty) {
+                TextButton(onClick = { copyAllLogs(systemLogClipboardText(logs)) }) {
+                    Text("Copy all")
+                }
+            }
+        }
         VerticalSpacer(12.dp)
         Box(
             Modifier
@@ -72,26 +96,44 @@ fun SystemLogCard(logs: List<SystemLogEntry>, modifier: Modifier = Modifier) {
                     fontStyle = FontStyle.Italic
                 )
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(
-                        items = newestFirstLogs,
-                        key = { "${it.timestampEpochMillis}-${it.message}" }
-                    ) { log ->
-                        Text(
-                            text = "${formatLogTimestamp(log.timestampEpochMillis)} • ${log.severity.name} • ${log.message}",
-                            color = severityColorFor(MaterialTheme.colorScheme, log.severity),
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        )
+                SelectionContainer {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                    ) {
+                        newestFirstLogs.forEach { log ->
+                            Text(
+                                text = systemLogLineText(log),
+                                color = severityColorFor(MaterialTheme.colorScheme, log.severity),
+                                fontSize = 13.sp,
+                                fontFamily = systemLogFontFamily,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+internal val systemLogFontFamily: FontFamily = FontFamily.Monospace
+
+internal fun systemLogLineText(log: SystemLogEntry): String =
+    "${formatLogTimestamp(log.timestampEpochMillis)} • ${log.severity.name} • ${log.message}"
+
+internal fun systemLogClipboardText(logs: List<SystemLogEntry>): String =
+    logs.asReversed().joinToString(separator = "\n", transform = ::systemLogLineText)
+
+@Suppress("DEPRECATION")
+@Composable
+private fun rememberClipboardCopyHandler(): (String) -> Unit {
+    val clipboardManager = LocalClipboardManager.current
+    return remember(clipboardManager) {
+        { copiedText: String -> clipboardManager.setText(AnnotatedString(copiedText)) }
     }
 }
 
