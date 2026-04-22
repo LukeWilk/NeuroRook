@@ -173,6 +173,7 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
         if (useCompactHardwareLayout(maxWidth)) {
             VerticalScrollCueBox(
                 scrollState = scrollState,
+                clipContentToBounds = false,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = compactHorizontalPadding)
@@ -234,7 +235,8 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
         } else {
             VerticalScrollCueBox(
                 scrollState = scrollState,
-                Modifier
+                clipContentToBounds = false,
+                modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background)
                     .padding(horizontal = wideHorizontalPadding)

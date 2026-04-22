@@ -44,6 +44,7 @@ internal fun verticalScrollCueContentDescription(isTopCue: Boolean): String =
 internal fun VerticalScrollCueBox(
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
+    clipContentToBounds: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val cueVisibility = verticalScrollCueVisibility(
@@ -52,7 +53,7 @@ internal fun VerticalScrollCueBox(
     )
 
     Box(
-        modifier = modifier.clipToBounds()
+        modifier = if (clipContentToBounds) modifier.clipToBounds() else modifier
     ) {
         content()
 
