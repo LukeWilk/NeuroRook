@@ -1,17 +1,26 @@
 package io.github.lukewilk.ui.elements.navigation
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Compose tests for [MenuSidebar] behavior around expansion, system mode labels, and header slots.
@@ -27,7 +36,7 @@ class MenuSidebarComposeJvmTest {
                     title = "App",
                     items = listOf("One" to {}, "Two" to {}),
                     isSystemDark = true,
-                    icons = listOf("1", "2")
+                    icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article)
                 )
             }
         }
@@ -44,7 +53,7 @@ class MenuSidebarComposeJvmTest {
                     title = "App",
                     items = listOf("One" to {}),
                     isSystemDark = false,
-                    icons = listOf("1")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
@@ -53,53 +62,53 @@ class MenuSidebarComposeJvmTest {
 
     @Test
     fun `menu sidebar omits system mode line when isSystemDark is null`() = runComposeUiTest {
-        // Covers the absence case so callers can omit the environment label entirely.
+        // Covers the absence case so callers can omit the environment label entirely while the shell stays titleless.
         setContent {
             MaterialTheme {
                 MenuSidebar(
                     title = "App",
                     items = listOf("One" to {}),
                     isSystemDark = null,
-                    icons = listOf("1")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
-        onNodeWithText("App").assertIsDisplayed()
+        onNodeWithText("App").assertDoesNotExist()
         onNodeWithText("System: Dark mode").assertDoesNotExist()
         onNodeWithText("System: Light mode").assertDoesNotExist()
     }
 
     @Test
     fun `menu sidebar uses header slot divider and suppresses duplicate menu title`() = runComposeUiTest {
-        // Verifies branded header content replaces the menu title instead of rendering duplicate headings.
+        // Verifies branded header content still renders while the shell itself stays titleless.
         setContent {
             MaterialTheme {
                 MenuSidebar(
                     title = "ShouldNotDuplicateInMenuColumn",
                     items = listOf("Alpha" to {}),
-                    icons = listOf("🔤"),
+                    icons = listOf(Icons.Outlined.Article),
                     headerContent = { Text("BrandedHeaderSlot") }
                 )
             }
         }
+        onNodeWithText("ShouldNotDuplicateInMenuColumn").assertDoesNotExist()
         onNodeWithText("BrandedHeaderSlot").assertIsDisplayed()
         onNodeWithText("Alpha").assertIsDisplayed()
-        onNodeWithText("ShouldNotDuplicateInMenuColumn").assertDoesNotExist()
     }
 
     @Test
-    fun `menu sidebar passes title into menu when header content is absent`() = runComposeUiTest {
-        // Verifies the menu title remains visible when no external header slot is provided.
+    fun `menu sidebar keeps items visible without rendering the optional title`() = runComposeUiTest {
+        // Verifies callers can still pass a title string without reintroducing header text into the shell.
         setContent {
             MaterialTheme {
                 MenuSidebar(
                     title = "VisibleMenuTitle",
                     items = listOf("Row" to {}),
-                    icons = listOf("🔧")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
-        onNodeWithText("VisibleMenuTitle").assertIsDisplayed()
+        onNodeWithText("VisibleMenuTitle").assertDoesNotExist()
         onNodeWithText("Row").assertIsDisplayed()
     }
 
@@ -111,15 +120,16 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "App",
                     items = listOf("Hardware" to {}),
-                    icons = listOf("🔧")
+                    icons = listOf(Icons.Outlined.Memory)
                 )
             }
         }
         onNodeWithText("Hardware").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Hardware").assertDoesNotExist()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+        onNodeWithContentDescription("Expand sidebar").performClick()
         waitForIdle()
         onNodeWithText("Hardware").assertIsDisplayed()
     }
@@ -133,17 +143,18 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "App",
                     items = listOf("Tab" to {}),
-                    icons = listOf("🔧"),
+                    icons = listOf(Icons.Outlined.Memory),
                     expanded = expanded,
                     onExpandedChange = { expanded = it }
                 )
             }
         }
         onNodeWithText("Tab").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Tab").assertDoesNotExist()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Tab navigation icon").assertIsDisplayed()
+        onNodeWithContentDescription("Expand sidebar").performClick()
         waitForIdle()
         onNodeWithText("Tab").assertIsDisplayed()
     }
@@ -156,15 +167,69 @@ class MenuSidebarComposeJvmTest {
                 MenuSidebar(
                     title = "App",
                     items = listOf("Solo" to {}),
-                    icons = listOf("🔧"),
+                    icons = listOf(Icons.Outlined.Memory),
                     expanded = null,
                     onExpandedChange = null
                 )
             }
         }
         onNodeWithText("Solo").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         waitForIdle()
         onNodeWithText("Solo").assertDoesNotExist()
+        onNodeWithContentDescription("Solo navigation icon").assertIsDisplayed()
+    }
+
+    @Test
+    fun `menu sidebar keeps collapsed icon-only items clickable`() = runComposeUiTest {
+        // Confirms collapsed navigation still exposes an accessible click target even when text labels are hidden.
+        var clicks = 0
+
+        setContent {
+            MaterialTheme {
+                MenuSidebar(
+                    title = null,
+                    items = listOf("Hardware" to { clicks += 1 }),
+                    icons = listOf(Icons.Outlined.Memory),
+                    expanded = false,
+                    onExpandedChange = { }
+                )
+            }
+        }
+
+        onNodeWithText("Hardware").assertDoesNotExist()
+        onNodeWithContentDescription("Hardware").assertIsDisplayed().performClick()
+
+        assertEquals(1, clicks)
+    }
+
+    @Test
+    fun `menu sidebar shows overflow cues while long navigation content can scroll`() = runComposeUiTest {
+        // Confirms long menus advertise additional off-screen items and update the cue once users scroll downward.
+        val menuItems = (1..20).map { index -> "Item $index" to {} }
+        val menuIcons = List(menuItems.size) { Icons.Outlined.Memory }
+
+        setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.size(width = 220.dp, height = 240.dp)
+                ) {
+                    MenuSidebar(
+                        title = "App",
+                        items = menuItems,
+                        icons = menuIcons
+                    )
+                }
+            }
+        }
+
+        waitForIdle()
+
+        onNodeWithContentDescription("More content below", useUnmergedTree = true).assertIsDisplayed()
+        onNodeWithContentDescription("More content above", useUnmergedTree = true).assertDoesNotExist()
+
+        onNodeWithText("Item 20").performScrollTo().assertIsDisplayed()
+
+        onNodeWithContentDescription("More content above", useUnmergedTree = true).assertIsDisplayed()
     }
 }

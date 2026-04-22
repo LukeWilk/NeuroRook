@@ -1,5 +1,9 @@
 package io.github.lukewilk.ui.elements.navigation
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -9,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -27,11 +32,11 @@ class NavigationComponentsTest {
     fun `menu item ui state data class supports copy and destructuring`() {
         var clicks = 0
         val original = MenuItemUiState(label = "Hardware", onClick = { clicks += 1 })
-        val updated = original.copy(icon = "🔧", selected = true)
+        val updated = original.copy(icon = Icons.Outlined.Memory, selected = true)
         val (label, onClick, icon, selected) = updated
 
         assertEquals("Hardware", label)
-        assertEquals("🔧", icon)
+        assertEquals(Icons.Outlined.Memory, icon)
         assertTrue(selected)
 
         onClick()
@@ -65,13 +70,13 @@ class NavigationComponentsTest {
                 MaterialTheme {
                     var clicks by remember { mutableIntStateOf(0) }
                     androidx.compose.foundation.layout.Column {
-                        MenuItem(label = "Hardware", onClick = { clicks += 1 }, icon = "🔧", selected = true)
+                        MenuItem(label = "Hardware", onClick = { clicks += 1 }, icon = Icons.Outlined.Memory, selected = true)
                         androidx.compose.material3.Text("Clicks: $clicks")
                     }
                 }
             }
 
-            onNodeWithText("🔧").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
             onNodeWithText("Hardware").assertIsDisplayed().performClick()
             onNodeWithText("Clicks: 1").assertIsDisplayed()
         }
@@ -138,16 +143,38 @@ class NavigationComponentsTest {
                     Menu(
                         title = "Shell",
                         items = listOf("Hardware" to {}, "Protocols" to {}),
-                        icons = listOf("🔧", "📡"),
+                        icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article),
                         selectedIndex = 1
                     )
                 }
             }
 
             onNodeWithText("Shell").assertIsDisplayed()
-            onNodeWithText("🔧").assertIsDisplayed()
-            onNodeWithText("📡").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
             onNodeWithText("Protocols").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `menu can render compact icon-only navigation rows`() {
+        // Verifies the collapsed-sidebar menu mode hides labels while keeping the navigation icons visible.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    Menu(
+                        title = null,
+                        items = listOf("Hardware" to {}, "Protocols" to {}),
+                        icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article),
+                        compact = true
+                    )
+                }
+            }
+
+            onNodeWithText("Hardware").assertDoesNotExist()
+            onNodeWithText("Protocols").assertDoesNotExist()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
         }
     }
 
@@ -212,8 +239,8 @@ class NavigationComponentsTest {
     }
 
     @Test
-    fun `menu sidebar renders system mode title and items`() {
-        // Verifies the sidebar surfaces its optional system-mode hint alongside the provided title and entries.
+    fun `menu sidebar renders system mode hint and items without a header title`() {
+        // Verifies the sidebar surfaces its optional system-mode hint alongside entries while the chevron row stays titleless.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -229,14 +256,14 @@ class NavigationComponentsTest {
             }
 
             onNodeWithText("System: Dark mode").assertIsDisplayed()
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertIsDisplayed()
         }
     }
 
     @Test
     fun `menu sidebar renders the light mode hint when requested`() {
-        // Covers the alternate system-mode label so both light and dark sidebar hints stay wired correctly.
+        // Covers the alternate system-mode label so both light and dark sidebar hints stay wired correctly without showing header text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -249,13 +276,13 @@ class NavigationComponentsTest {
             }
 
             onNodeWithText("System: Light mode").assertIsDisplayed()
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithText("Navigation").assertDoesNotExist()
         }
     }
 
     @Test
     fun `menu sidebar omits the system mode hint when no system theme is provided`() {
-        // Verifies the nullable system-theme branch leaves the sidebar title and items intact without rendering a hint line.
+        // Verifies the nullable system-theme branch leaves the sidebar items intact without rendering a hint line or title text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -267,7 +294,7 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Hardware").assertIsDisplayed()
             onNodeWithText("System: Dark mode").assertDoesNotExist()
             onNodeWithText("System: Light mode").assertDoesNotExist()
@@ -288,21 +315,21 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("≡").assertIsDisplayed()
+            onNodeWithContentDescription("Collapse sidebar").assertIsDisplayed()
             onNodeWithText("System: Dark mode").assertIsDisplayed()
             onNodeWithText("Navigation").assertDoesNotExist()
 
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("System: Dark mode").assertDoesNotExist()
 
-            onNodeWithText("≡").assertIsDisplayed().performClick()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("System: Dark mode").assertIsDisplayed()
         }
     }
 
     @Test
     fun `menu sidebar omits the menu title when header content owns the heading slot`() {
-        // Covers the Menu(title = if (headerContent == null) title else null) branch so navigation rows do not duplicate a hidden shell title.
+        // Verifies branded header content owns the visible heading while the chevron row stays titleless.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -310,21 +337,21 @@ class NavigationComponentsTest {
                         title = "Hidden Shell Title",
                         headerContent = { androidx.compose.material3.Text("Visible Shell Header") },
                         items = listOf("Hardware" to {}),
-                        icons = listOf("🔧"),
+                        icons = listOf(Icons.Outlined.Memory),
                         selectedIndex = 0
                     )
                 }
             }
 
+            onNodeWithText("Hidden Shell Title").assertDoesNotExist()
             onNodeWithText("Visible Shell Header").assertIsDisplayed()
             onNodeWithText("Hardware").assertIsDisplayed()
-            onNodeWithText("Hidden Shell Title").assertDoesNotExist()
         }
     }
 
     @Test
     fun `menu sidebar shows custom header and divider without system hint when theme is unknown`() {
-        // Covers the expanded branch where systemModeLabel is null but headerContent is non-null, so the divider path still runs.
+        // Covers the expanded branch where systemModeLabel is null and the custom header renders below a titleless toggle row.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -356,7 +383,7 @@ class NavigationComponentsTest {
                         title = null,
                         headerContent = { androidx.compose.material3.Text("Shell Header") },
                         items = listOf("Hardware" to {}, "Protocols" to {}),
-                        icons = listOf("🔧", "📡"),
+                        icons = listOf(Icons.Outlined.Memory, Icons.Outlined.Article),
                         selectedIndex = 1,
                         expanded = expanded,
                         onExpandedChange = { expanded = it }
@@ -365,13 +392,15 @@ class NavigationComponentsTest {
             }
 
             onNodeWithText("Shell Header").assertIsDisplayed()
-            onNodeWithText("🔧").assertIsDisplayed()
-            onNodeWithText("📡").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
             onNodeWithText("Protocols").assertIsDisplayed()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Shell Header").assertDoesNotExist()
             onNodeWithText("Protocols").assertDoesNotExist()
-            onNodeWithText("≡").assertIsDisplayed().performClick()
+            onNodeWithContentDescription("Hardware navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Protocols navigation icon").assertIsDisplayed()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
             onNodeWithText("Shell Header").assertIsDisplayed()
         }
     }
@@ -389,7 +418,7 @@ class NavigationComponentsTest {
                             "Beta" to {},
                             "Gamma" to {}
                         ),
-                        icons = listOf("🔤", "🔹")
+                        icons = listOf(Icons.Outlined.Article, Icons.Outlined.Info)
                     )
                 }
             }
@@ -416,9 +445,9 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("Pinned Open").assertIsDisplayed()
-            onNodeWithText("≡").performClick()
-            onNodeWithText("Pinned Open").assertIsDisplayed()
+            onNodeWithText("Pinned Open").assertDoesNotExist()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
+            onNodeWithText("Pinned Open").assertDoesNotExist()
             onNodeWithText("Hardware").assertIsDisplayed()
         }
     }
@@ -438,10 +467,10 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("≡").assertIsDisplayed()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed()
             onNodeWithText("Hidden While Collapsed").assertDoesNotExist()
             onNodeWithText("Hardware").assertDoesNotExist()
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Expand sidebar").performClick()
             onNodeWithText("Hidden While Collapsed").assertDoesNotExist()
             onNodeWithText("Hardware").assertDoesNotExist()
         }
@@ -449,7 +478,7 @@ class NavigationComponentsTest {
 
     @Test
     fun `menu sidebar collapses to the menu glyph and can be expanded again`() {
-        // Covers the collapsed-width branch so the sidebar can hide and then restore its title and items deterministically.
+        // Covers the collapsed-width branch so the sidebar can hide and then restore its items deterministically without header text.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -463,11 +492,12 @@ class NavigationComponentsTest {
                 }
             }
 
-            onNodeWithText("≡").performClick()
+            onNodeWithContentDescription("Collapse sidebar").performClick()
             onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertDoesNotExist()
-            onNodeWithText("≡").assertIsDisplayed().performClick()
-            onNodeWithText("Navigation").assertIsDisplayed()
+            onNodeWithContentDescription("Hardware").assertIsDisplayed()
+            onNodeWithContentDescription("Expand sidebar").assertIsDisplayed().performClick()
+            onNodeWithText("Navigation").assertDoesNotExist()
             onNodeWithText("Signals").assertIsDisplayed()
         }
     }

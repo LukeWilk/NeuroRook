@@ -7,12 +7,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
 import io.github.lukewilk.hardware.api.HardwareBackendApi
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Compose-backed desktop tests for the window body and backend memoization behavior.
@@ -30,7 +32,7 @@ class MainDesktopComposeTest {
                 )
             }
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 

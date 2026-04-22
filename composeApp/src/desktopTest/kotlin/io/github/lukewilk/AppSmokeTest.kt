@@ -3,10 +3,13 @@ package io.github.lukewilk
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
@@ -41,21 +44,22 @@ import org.junit.Assume.assumeTrue
 class AppSmokeTest {
     @Test
     fun `app uses the default null backend parameter when callers omit it`() = runComposeUiTest {
-        // Covers the default-argument entry path so desktop callers can render the app without supplying a backend.
+        // Covers the default-argument entry path so desktop callers can render the app without supplying a backend or fallback title text.
         setContent {
             App()
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
     @Test
-    fun `app renders the shared scaffold header and default hardware tab`() = runComposeUiTest {
+    fun `app renders the shared scaffold chrome and default hardware tab`() = runComposeUiTest {
         // Verifies the desktop host can render the shared root UI without a backend implementation.
         setContent {
             App(backendApi = null)
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
+        onNodeWithContentDescription("Collapse sidebar").assertIsDisplayed()
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
@@ -65,7 +69,7 @@ class AppSmokeTest {
         setContent {
             App(backendApi = null, colorScheme = lightColorScheme(), headerContent = null)
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
@@ -75,7 +79,7 @@ class AppSmokeTest {
         setContent {
             App(backendApi = FakeAppBackendApi())
         }
-        onNodeWithText("Neuro Rook").assertIsDisplayed()
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
@@ -91,23 +95,39 @@ class AppSmokeTest {
 
     @Test
     fun `app shell workflow can switch sections collapse and return to hardware`() = runComposeUiTest {
-        // Covers the root app shell as a real navigation workflow instead of isolated one-step renders.
+        // Covers the root app shell as a real navigation workflow, including icon-only collapsed navigation.
         setContent {
             App(backendApi = null)
         }
 
         onNodeWithText("Signals").performClick()
         onNodeWithText("Signals screen coming soon...").assertIsDisplayed()
-        onNodeWithText("≡").performClick()
+        onNodeWithContentDescription("Collapse sidebar").performClick()
         onNodeWithText("Signals").assertDoesNotExist()
-        onNodeWithText("≡").performClick()
-        onNodeWithText("Hardware").performClick()
+        onNodeWithContentDescription("Signals navigation icon").assertIsDisplayed()
+        onNodeWithContentDescription("Hardware").performClick()
         onNodeWithText("Device Selection").assertIsDisplayed()
     }
 
     @Test
+    fun `app shows attribution license and repository details on the about page`() = runComposeUiTest {
+        // Covers the screenshot-inspired About destination that documents the icon source together with the NeuroRook MIT license and repository.
+        setContent {
+            App(backendApi = null)
+        }
+
+        onNodeWithText("About").performScrollTo().performClick()
+        onNodeWithText("About Neuro Rook").assertIsDisplayed()
+        onNodeWithText("Icon attribution").assertIsDisplayed()
+        onNodeWithText("NeuroRook").assertIsDisplayed()
+        onNodeWithText("Repository").assertIsDisplayed()
+        onNodeWithText("https://github.com/LukeWilk/NeuroRook").assertIsDisplayed().assertHasClickAction()
+        onNodeWithText("License: MIT License\nCopyright (c) 2026 Luke Wilk").assertIsDisplayed()
+    }
+
+    @Test
     fun `app renders custom desktop header content when supplied`() = runComposeUiTest {
-        // Covers the optional headerContent path used by the desktop host sidebar.
+        // Covers the optional headerContent path while keeping the shared scaffold titleless.
         setContent {
             App(
                 backendApi = null,
@@ -115,6 +135,7 @@ class AppSmokeTest {
             )
         }
 
+        assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
         onNodeWithText("Hardware").assertIsDisplayed()
     }
 
@@ -274,7 +295,21 @@ class AppSmokeTest {
             return true
         }
 
-        return !System.getenv("DISPLAY").isNullOrBlank() || !System.getenv("WAYLAND_DISPLAY").isNullOrBlank()
+        val hasDisplayEnvironment = !System.getenv("DISPLAY").isNullOrBlank() || !System.getenv("WAYLAND_DISPLAY").isNullOrBlank()
+        if (!hasDisplayEnvironment) {
+            return false
+        }
+
+        return runCatching {
+            java.awt.EventQueue.invokeAndWait {
+                Frame("NeuroRook desktop smoke probe").apply {
+                    setSize(1, 1)
+                    setLocation(-10_000, -10_000)
+                    isVisible = true
+                    dispose()
+                }
+            }
+        }.isSuccess
     }
 
     /** Waits for the real desktop entrypoint to publish a visible top-level window with the requested title. */

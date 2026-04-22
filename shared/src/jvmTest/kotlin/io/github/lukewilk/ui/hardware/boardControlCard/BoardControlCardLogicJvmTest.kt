@@ -31,7 +31,7 @@ class BoardControlCardLogicJvmTest {
     @Test
     fun `channelStatusTone maps configured flag to enum variants`() {
         assertEquals(ChannelStatusTone.CONFIGURED, channelStatusTone(isConfigured = true))
-        assertEquals(ChannelStatusTone.DEFAULT, channelStatusTone(isConfigured = false))
+        assertEquals(ChannelStatusTone.UNCONFIGURED, channelStatusTone(isConfigured = false))
     }
 
     @Test
