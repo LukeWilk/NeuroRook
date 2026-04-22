@@ -1,11 +1,15 @@
 package io.github.lukewilk.ui
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.ui.text.font.FontWeight
 import io.github.lukewilk.ui.elements.scroll.verticalScrollCueContentDescription
 import io.github.lukewilk.ui.elements.scroll.verticalScrollCueVisibility
 import io.github.lukewilk.ui.elements.navigation.menuItemHasDivider
 import io.github.lukewilk.ui.elements.navigation.menuShowsTitle
 import io.github.lukewilk.ui.elements.navigation.menuSidebarItemHasDivider
+import io.github.lukewilk.ui.elements.navigation.menuSidebarToggleIcon
 import io.github.lukewilk.ui.elements.navigation.menuSidebarSystemModeLabel
 import io.github.lukewilk.ui.elements.navigation.menuSidebarToggleContentDescription
 import io.github.lukewilk.ui.elements.navigation.menuSidebarWidth
@@ -86,6 +90,8 @@ class CommonUiModelTest {
         assertNull(menuSidebarSystemModeLabel(null))
         assertEquals("Collapse sidebar", menuSidebarToggleContentDescription(true))
         assertEquals("Expand sidebar", menuSidebarToggleContentDescription(false))
+        assertEquals(Icons.Outlined.ChevronLeft, menuSidebarToggleIcon(expanded = true))
+        assertEquals(Icons.Outlined.ChevronRight, menuSidebarToggleIcon(expanded = false))
         assertTrue(menuSidebarItemHasDivider(index = 0, lastIndex = 2))
         assertFalse(menuSidebarItemHasDivider(index = 2, lastIndex = 2))
     }

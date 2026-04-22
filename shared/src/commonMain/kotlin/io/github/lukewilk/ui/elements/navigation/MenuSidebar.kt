@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +46,9 @@ internal fun menuSidebarItemHasDivider(index: Int, lastIndex: Int): Boolean = in
 
 internal fun menuSidebarToggleContentDescription(expanded: Boolean): String =
     if (expanded) "Collapse sidebar" else "Expand sidebar"
+
+internal fun menuSidebarToggleIcon(expanded: Boolean): ImageVector =
+    if (expanded) Icons.Outlined.ChevronLeft else Icons.Outlined.ChevronRight
 
 /** The shell header row now owns the title, so the nested [Menu] never repeats it. */
 internal fun menuSidebarMenuTitleForMenu(hasHeaderContent: Boolean, title: String?): String? =
@@ -118,7 +121,7 @@ fun MenuSidebar(
                             )
                         ) {
                             Icon(
-                                imageVector = if (isExpanded) Icons.Outlined.Close else Icons.Outlined.Menu,
+                                imageVector = menuSidebarToggleIcon(isExpanded),
                                 contentDescription = menuSidebarToggleContentDescription(isExpanded),
                                 modifier = Modifier.size(18.dp)
                             )
