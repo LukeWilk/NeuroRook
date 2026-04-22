@@ -231,6 +231,12 @@ class HardwareBackendApi(
             appendError("Sampling rate can only be changed for the synthetic board.")
             throw IllegalStateException("Can only set sampling rate for synthetic board")
         }
+
+        if (rate <= 0) {
+            appendError("Sampling rate must be greater than 0 Hz.")
+            throw IllegalArgumentException("Sampling rate must be greater than 0 Hz")
+        }
+
         stateStore.update { it.copy(samplingRateHz = rate) }
         appendInfo("Sampling rate set to $rate Hz.")
         return true

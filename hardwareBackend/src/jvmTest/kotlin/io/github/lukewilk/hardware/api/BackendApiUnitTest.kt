@@ -95,6 +95,33 @@ class BackendApiUnitTest : BackendApiTestSupport() {
         assertTrue(api.setSamplingRateHz(500))
         assertEquals(500, api.getState().samplingRateHz)
     }
+
+    /** Verifies synthetic boards reject a zero sampling rate so synthetic streaming cannot stall with no generated samples. */
+    @Test
+    fun `set sampling rate rejects zero for synthetic boards`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        assertTrue(api.setSamplingRateHz(500))
+
+        val failure = kotlin.runCatching { api.setSamplingRateHz(0) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(500, api.getState().samplingRateHz, "Rejected rates should not overwrite the previous valid synthetic rate")
+        assertSystemLogContains(SystemLogSeverity.ERROR, "Sampling rate must be greater than 0 Hz")
+    }
+
+    /** Verifies synthetic boards reject negative sampling rates and preserve the last valid configured rate. */
+    @Test
+    fun `set sampling rate rejects negative values for synthetic boards`() = runBlocking {
+        assertTrue(api.connect("SYNTHETIC_BOARD"))
+        assertTrue(api.setSamplingRateHz(500))
+
+        val failure = kotlin.runCatching { api.setSamplingRateHz(-128) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals(500, api.getState().samplingRateHz, "Rejected rates should preserve the previous valid synthetic rate")
+        assertSystemLogContains(SystemLogSeverity.ERROR, "Sampling rate must be greater than 0 Hz")
+    }
+
     /** Verifies real boards reject sampling-rate changes and surface a precise error contract. */
     @Test
     fun `set sampling rate throws for non synthetic boards`() = runBlocking {
