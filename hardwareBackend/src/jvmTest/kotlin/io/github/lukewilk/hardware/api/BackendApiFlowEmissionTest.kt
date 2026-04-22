@@ -1,6 +1,8 @@
 package io.github.lukewilk.hardware.api
 
 import io.github.lukewilk.shared.model.ChannelData
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -120,6 +122,24 @@ class BackendApiFlowEmissionTest : BackendApiTestSupport() {
         assertEquals(expectedChannels, receivedChannels)
     }
 
+    /** Verifies stopping a stream clears preferred-flow replay caches so new collectors do not see stale session data. */
+    @Test
+    fun `stopped preferred flows do not replay stale session data`() = runBlocking {
+        prepareSyntheticStreamingScenario()
+        assertTrue(api.startStreaming())
+
+        withTimeout(2_000) { api.filteredFlow.first { it.payload.isNotEmpty() } }
+        withTimeout(2_000) { api.bandPowersFlow.first { it.payload.isNotEmpty() } }
+        withTimeout(2_000) { api.fftResultFlow.first { it.payload.isNotEmpty() } }
+
+        assertTrue(api.stopStreaming())
+        delay(200)
+
+        assertFalse(collectsAnyEmissionWithin(api.filteredFlow), "Filtered flow should stay idle after stop without replaying stale data")
+        assertFalse(collectsAnyEmissionWithin(api.bandPowersFlow), "Band-power flow should stay idle after stop without replaying stale data")
+        assertFalse(collectsAnyEmissionWithin(api.fftResultFlow), "FFT flow should stay idle after stop without replaying stale data")
+    }
+
     /** Keeps one collector subscribed until every expected channel id has produced a payload, avoiding replay-only assertions. */
     private suspend fun <T> awaitChannels(
         flow: Flow<ChannelData<T>>,
@@ -136,5 +156,17 @@ class BackendApiFlowEmissionTest : BackendApiTestSupport() {
             }
         }
         return seenChannels
+    }
+
+    /** Returns true only when a brand-new collector can observe an emission within the timeout window. */
+    private suspend fun <T> collectsAnyEmissionWithin(flow: Flow<T>, timeoutMillis: Long = 250): Boolean {
+        return try {
+            withTimeout(timeoutMillis) {
+                flow.first()
+                true
+            }
+        } catch (_: TimeoutCancellationException) {
+            false
+        }
     }
 }

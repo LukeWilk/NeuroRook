@@ -14,6 +14,7 @@ import io.github.lukewilk.shared.model.SystemLogSeverity
 import io.github.lukewilk.shared.StateStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,6 +89,7 @@ class HardwareBackendApi(
         appendInfo("Disconnect requested for ${connectedBoardLabel("current board")}.")
         manager.close()
         streamingJob = null
+        clearPreferredFlowReplayCaches()
         connectedBoardId = null
         appendInfo("Disconnected from board.")
         return true
@@ -165,6 +167,7 @@ class HardwareBackendApi(
 
     override suspend fun stopStreaming(): Boolean {
         if (streamingJob == null && !stateStore.get().streaming) {
+            clearPreferredFlowReplayCaches()
             appendWarn("Stop stream requested, but no active stream was running for ${connectedBoardLabel("the current board")}.")
             return true
         }
@@ -173,6 +176,7 @@ class HardwareBackendApi(
         streamingJob?.cancel()
         streamingJob = null
         manager.stopStream()
+        clearPreferredFlowReplayCaches()
         appendInfo("Stream stopped for ${connectedBoardLabel("the current board")}.")
         return true
     }
@@ -266,6 +270,13 @@ class HardwareBackendApi(
     private fun connectedBoardLabel(fallback: String): String {
         val boardId = connectedBoardId
         return if (boardId == null) fallback else boardId.name
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun clearPreferredFlowReplayCaches() {
+        _filteredFlow.resetReplayCache()
+        _bandPowersFlow.resetReplayCache()
+        _fftResultFlow.resetReplayCache()
     }
 
     private fun appendLog(severity: SystemLogSeverity, message: String) {
