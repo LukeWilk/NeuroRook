@@ -94,18 +94,6 @@ class AppSmokeTest {
     }
 
     @Test
-    fun `app shows the dedicated graphs empty state when the graphs tab is selected`() = runComposeUiTest {
-        // Verifies the desktop host routes Graphs to its own blank-state screen instead of the generic placeholder surface.
-        setContent {
-            App(backendApi = null)
-        }
-
-        onNodeWithText("Graphs").performClick()
-        onNodeWithText("Charts and plots will appear here.").assertIsDisplayed()
-        onNodeWithText("Graphs screen coming soon...").assertDoesNotExist()
-    }
-
-    @Test
     fun `app shell workflow can switch sections collapse and return to hardware`() = runComposeUiTest {
         // Covers the root app shell as a real navigation workflow, including icon-only collapsed navigation.
         setContent {

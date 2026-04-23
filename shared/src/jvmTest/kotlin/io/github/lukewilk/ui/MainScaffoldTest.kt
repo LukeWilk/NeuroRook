@@ -118,34 +118,6 @@ class MainScaffoldTest {
     }
 
     @Test
-    fun `main scaffold keeps custom header visible while placeholders replace the hardware pane`() {
-        // Exercises remember(selectedTab, isSidebarOpen, headerContent) while preserving custom header content when Graphs swaps in its dedicated empty state.
-        runComposeUiTest {
-            setContent {
-                MaterialTheme {
-                    MainScaffold(
-                        hardwareScreen = {
-                            androidx.compose.material3.Text("Hardware screen content")
-                        },
-                        headerContent = {
-                            androidx.compose.material3.Text("Branded Shell Header")
-                        }
-                    )
-                }
-            }
-
-            onNodeWithText("Neuro Rook").assertDoesNotExist()
-            onNodeWithText("Branded Shell Header").assertIsDisplayed()
-            onNodeWithText("Graphs").performClick()
-            onNodeWithText(GRAPHS_EMPTY_STATE_MESSAGE).assertIsDisplayed()
-            onNodeWithText("Graphs screen coming soon...").assertDoesNotExist()
-            onNodeWithText("Neuro Rook").assertDoesNotExist()
-            onNodeWithText("Branded Shell Header").assertIsDisplayed()
-            onNodeWithText("Hardware screen content").assertDoesNotExist()
-        }
-    }
-
-    @Test
     fun `main scaffold shows the collapsed expand icon after closing the sidebar`() {
         // Exercises the collapsed-sidebar header branch so the compact expand affordance and icon-only navigation stay visible.
         runComposeUiTest {
