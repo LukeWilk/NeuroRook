@@ -78,6 +78,53 @@ class MainSmokeTest {
     }
 
     @Test
+    fun `synthetic board connection seeds the temporary dev wave when no waves are configured`() {
+        // Verifies the backend now starts synthetic dev sessions with a visible 10 Hz sine wave instead of an all-zero default.
+        val stateStore = StateStore(HardwareState())
+        val manager = BoardConnectionManager(stateStore)
+
+        try {
+            assertTrue(manager.connect(BoardIds.SYNTHETIC_BOARD, ""))
+
+            val updated = stateStore.get()
+            assertEquals(SyntheticMode.WAVE_GENERATOR, updated.syntheticMode)
+            assertEquals(1, updated.waveSpecs.size)
+            assertEquals(defaultRunnerWaveSpec(), updated.waveSpecs.first())
+        } finally {
+            manager.close()
+        }
+    }
+
+    @Test
+    fun `synthetic board connection preserves existing wave configuration`() {
+        // Verifies the temporary dev default does not overwrite user-configured synthetic waves when they already exist.
+        val existingWave = WaveSpec(
+            enabled = true,
+            type = WaveType.SQUARE,
+            amplitude = 2.0,
+            frequencyHz = 5.0,
+            phaseShiftRad = 0.25
+        )
+        val stateStore = StateStore(
+            HardwareState(
+                syntheticMode = SyntheticMode.SYNTHETIC_EEG_SIGNAL,
+                waveSpecs = listOf(existingWave)
+            )
+        )
+        val manager = BoardConnectionManager(stateStore)
+
+        try {
+            assertTrue(manager.connect(BoardIds.SYNTHETIC_BOARD, ""))
+
+            val updated = stateStore.get()
+            assertEquals(SyntheticMode.SYNTHETIC_EEG_SIGNAL, updated.syntheticMode)
+            assertEquals(listOf(existingWave), updated.waveSpecs)
+        } finally {
+            manager.close()
+        }
+    }
+
+    @Test
     fun `filtered log messages cover zero and non zero branches`() {
         // Verifies the extracted filtered-data formatter emits both verbose output and the correct summary branch.
         val nonZeroMessages = filteredLogMessages(doubleArrayOf(0.0, 1.5, -2.0))

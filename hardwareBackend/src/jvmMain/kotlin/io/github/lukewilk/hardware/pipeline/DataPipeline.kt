@@ -116,16 +116,19 @@ suspend fun startDataPipeline(
                             )
                         )
                     }
-                    // Windowing
+                    // Preserve the time-domain filtered waveform for UI/stream consumers before FFT windowing.
+                    val filteredSignal = sig.copyOf()
+                    // Windowing for spectral analysis only.
                     val windowType = WindowType.HANN
-                    val windowed = applyWindow(sig, windowType)
+                    val windowed = applyWindow(filteredSignal.copyOf(), windowType)
                     // Power spectral density (PSD) via Welch's method
                     val psd = computeWelchPSD(
                         windowedSignal = windowed,
                         config = WelchConfig(
                             samplingRateHz = samplingRate,
                             windowType = windowType,
-                            padToNextPowerOfTwo = true
+                            padToNextPowerOfTwo = true,
+                            minimumNfft = 1024
                         )
                     )
                     // Compute and smooth band powers
@@ -136,7 +139,7 @@ suspend fun startDataPipeline(
                     }
                     // Preserve the originating channel on preferred-flow payloads so downstream collectors do not infer
                     // channel identity from emission order alone.
-                    val filteredByChannel = ChannelData(channelId = frame.channel, payload = windowed)
+                    val filteredByChannel = ChannelData(channelId = frame.channel, payload = filteredSignal)
                     val bandPowersByChannel = ChannelData(channelId = frame.channel, payload = smoothedBandPowers)
                     val fftResultByChannel = ChannelData(channelId = frame.channel, payload = psd)
                     val bandPowerSummary =
@@ -144,7 +147,7 @@ suspend fun startDataPipeline(
                             smoothedBandPowers.joinToString(", ") { (name, power) -> "$name=${"%.4f".format(power)}" }
                     // Invoke callbacks for downstream consumers (API, UI, etc.)
                     logger.d { "Invoking pipeline callbacks for channel ${frame.channel}" }
-                    onFiltered?.invoke(windowed)
+                    onFiltered?.invoke(filteredSignal)
                     onFilteredByChannel?.invoke(filteredByChannel)
                     onBandPowers?.invoke(smoothedBandPowers)
                     onBandPowersByChannel?.invoke(bandPowersByChannel)

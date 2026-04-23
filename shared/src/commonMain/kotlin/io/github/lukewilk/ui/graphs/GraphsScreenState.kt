@@ -1,7 +1,11 @@
 package io.github.lukewilk.ui.graphs
 
 import androidx.compose.ui.state.ToggleableState
+import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.ui.ChannelState
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /** Dataset display order used by both configuration controls and rendered graph cards. */
 private val graphDataSetDisplayOrder = listOf(
@@ -87,16 +91,16 @@ internal fun graphsSelectedGraphSelections(
 ): Set<GraphSelection> {
     val availableChannelIds = selectableGraphChannels(channels).mapTo(mutableSetOf()) { it.id }
     val availableDataSetIds = availableDataSets.toSet()
-    if (availableChannelIds.isEmpty() || availableDataSetIds.isEmpty()) return emptySet()
+    if (availableChannelIds.isEmpty() || availableDataSetIds.isEmpty()) return emptySet<GraphSelection>()
 
     return if (hasUserConfiguredGraphSelections) {
-        selectedGraphSelections.filterTo(mutableSetOf()) { selection ->
+        selectedGraphSelections.filterTo(mutableSetOf<GraphSelection>()) { selection ->
             selection.channelId in availableChannelIds && selection.dataSetType in availableDataSetIds
         }
     } else {
         defaultSelectedChannelIds
             .filter { it in availableChannelIds }
-            .flatMapTo(mutableSetOf()) { channelId ->
+            .flatMapTo(mutableSetOf<GraphSelection>()) { channelId ->
                 defaultSelectedDataSets
                     .filter { it in availableDataSetIds }
                     .map { dataSetType -> GraphSelection(channelId = channelId, dataSetType = dataSetType) }
@@ -111,8 +115,8 @@ internal fun graphSelectionSummaryCounts(
     selectedGraphSelections: Set<GraphSelection>,
     hasUserConfiguredGraphSelections: Boolean
 ): Pair<Int, Int> = if (hasUserConfiguredGraphSelections) {
-    selectedGraphSelections.mapTo(mutableSetOf()) { it.channelId }.size to
-        selectedGraphSelections.mapTo(mutableSetOf()) { it.dataSetType }.size
+    selectedGraphSelections.mapTo(mutableSetOf<Int>()) { it.channelId }.size to
+        selectedGraphSelections.mapTo(mutableSetOf<GraphDataSetType>()) { it.dataSetType }.size
 } else {
     defaultSelectedChannelIds.size to defaultSelectedDataSets.size
 }
@@ -131,16 +135,16 @@ internal fun graphSelectionsForChannel(
     channels: List<ChannelState>
 ): Set<GraphSelection> {
     val isSelectable = selectableGraphChannels(channels).any { it.id == channelId }
-    if (!isSelectable) return emptySet()
+    if (!isSelectable) return emptySet<GraphSelection>()
 
-    return availableDataSets.mapTo(mutableSetOf()) { dataSetType ->
+    return availableDataSets.mapTo(mutableSetOf<GraphSelection>()) { dataSetType ->
         GraphSelection(channelId = channelId, dataSetType = dataSetType)
     }
 }
 
 /** Returns all matrix cells belonging to one dataset column. */
 internal fun graphSelectionsForDataSet(channels: List<ChannelState>, dataSetType: GraphDataSetType): Set<GraphSelection> =
-    selectableGraphChannels(channels).mapTo(mutableSetOf()) { channel ->
+    selectableGraphChannels(channels).mapTo(mutableSetOf<GraphSelection>()) { channel ->
         GraphSelection(channelId = channel.id, dataSetType = dataSetType)
     }
 
@@ -160,15 +164,148 @@ internal fun graphConfigurationSummary(selectedChannelCount: Int, selectedDataSe
     append(if (selectedDataSetCount == 1) " data set selected" else " data sets selected")
 }
 
-/** Derives the full page UI state from selections plus latest backend payloads. */
-internal fun graphsPageUiState(
-    isConfigurationExpanded: Boolean,
+/** Upper bound for streamed line/spectrum points so graph rendering stays lightweight during frequent updates. */
+private const val maxRenderedLinePoints = 720
+
+/** Upper bound for streamed FFT bins because spectra can contain significantly more buckets than the viewport. */
+private const val maxRenderedSpectrumPoints = 560
+
+/** Builds a bounded line-graph model from a raw filtered signal payload. */
+private fun filteredSignalRenderModel(samples: DoubleArray): LineGraphRenderModel {
+    val sampled = sampleSignal(samples, maxRenderedLinePoints)
+    val graphBounds = graphBounds(
+        minimum = sampled.minOrNull() ?: 0f,
+        maximum = sampled.maxOrNull() ?: 0f,
+        includeZero = true
+    )
+
+    return LineGraphRenderModel(
+        points = sampled.toGraphPoints(),
+        minY = graphBounds.first,
+        maxY = graphBounds.second,
+        showZeroLine = true,
+        fillArea = true,
+        startLabel = "Oldest",
+        endLabel = "Newest"
+    )
+}
+
+/** Builds a compact categorical bar graph for band-power payloads. */
+private fun bandPowersRenderModel(bands: List<BandPower>): BarGraphRenderModel {
+    val bars = bands.map { band ->
+        GraphBarEntry(label = band.name, value = band.power.toFloat())
+    }
+    val graphBounds = graphBounds(
+        minimum = bars.minOfOrNull(GraphBarEntry::value) ?: 0f,
+        maximum = bars.maxOfOrNull(GraphBarEntry::value) ?: 0f,
+        includeZero = true
+    )
+
+    return BarGraphRenderModel(
+        bars = bars,
+        minY = graphBounds.first,
+        maxY = graphBounds.second
+    )
+}
+
+/** Builds a spectrum-style line graph from the latest FFT bins. */
+private fun fftRenderModel(values: Array<Pair<Double, Double>>): LineGraphRenderModel {
+    val sampled = samplePairs(values, maxRenderedSpectrumPoints)
+    val minFrequency = sampled.minOfOrNull { it.first.toFloat() } ?: 0f
+    val maxFrequency = sampled.maxOfOrNull { it.first.toFloat() } ?: 0f
+    val graphBounds = graphBounds(
+        minimum = sampled.minOfOrNull { it.second.toFloat() } ?: 0f,
+        maximum = sampled.maxOfOrNull { it.second.toFloat() } ?: 0f,
+        includeZero = true
+    )
+
+    return LineGraphRenderModel(
+        points = sampled.toGraphPoints(minimumX = minFrequency, maximumX = maxFrequency),
+        minY = graphBounds.first,
+        maxY = graphBounds.second,
+        showZeroLine = true,
+        fillArea = false,
+        startLabel = "${formatGraphNumber(minFrequency.toDouble())} Hz",
+        endLabel = "${formatGraphNumber(maxFrequency.toDouble())} Hz"
+    )
+}
+
+/** Evenly samples a streamed signal down to a render-friendly point count while keeping the newest value. */
+private fun sampleSignal(values: DoubleArray, maxPoints: Int): List<Float> {
+    if (values.isEmpty()) return emptyList()
+    if (values.size <= maxPoints) return values.map(Double::toFloat)
+    if (maxPoints <= 1) return listOf(values.last().toFloat())
+
+    val step = values.lastIndex.toDouble() / (maxPoints - 1).toDouble()
+    return List(maxPoints) { index ->
+        values[(index * step).toInt().coerceIn(values.indices)].toFloat()
+    }
+}
+
+/** Evenly samples FFT bins down to a bounded render-friendly list while preserving spectral ordering. */
+private fun samplePairs(values: Array<Pair<Double, Double>>, maxPoints: Int): List<Pair<Double, Double>> {
+    if (values.isEmpty()) return emptyList()
+    val sorted = values.sortedBy { it.first }
+    if (sorted.size <= maxPoints) return sorted
+    if (maxPoints <= 1) return listOf(sorted.last())
+
+    val step = sorted.lastIndex.toDouble() / (maxPoints - 1).toDouble()
+    return List(maxPoints) { index ->
+        sorted[(index * step).toInt().coerceIn(sorted.indices)]
+    }
+}
+
+/** Maps uniformly spaced values to normalized graph points for the shared line renderer. */
+private fun List<Float>.toGraphPoints(): List<GraphPoint> {
+    if (isEmpty()) return emptyList()
+    if (size == 1) return listOf(GraphPoint(x = 0.5f, y = first()))
+
+    return mapIndexed { index, value ->
+        GraphPoint(
+            x = index.toFloat() / lastIndex.toFloat(),
+            y = value
+        )
+    }
+}
+
+/** Maps frequency/magnitude pairs to normalized graph points for the shared line renderer. */
+private fun List<Pair<Double, Double>>.toGraphPoints(minimumX: Float, maximumX: Float): List<GraphPoint> {
+    if (isEmpty()) return emptyList()
+    if (size == 1) return listOf(GraphPoint(x = 0.5f, y = first().second.toFloat()))
+
+    val xRange = (maximumX - minimumX).takeIf { abs(it) > 0f } ?: 1f
+    return map { (x, y) ->
+        GraphPoint(
+            x = ((x.toFloat() - minimumX) / xRange).coerceIn(0f, 1f),
+            y = y.toFloat()
+        )
+    }
+}
+
+/** Expands flat data ranges into safe graph bounds and optionally keeps zero visible as a baseline. */
+private fun graphBounds(minimum: Float, maximum: Float, includeZero: Boolean): Pair<Float, Float> {
+    var lowerBound = if (includeZero) min(minimum, 0f) else minimum
+    var upperBound = if (includeZero) max(maximum, 0f) else maximum
+
+    if (lowerBound == upperBound) {
+        val padding = (abs(lowerBound).takeIf { it > 0f } ?: 1f) * 0.1f
+        lowerBound -= padding
+        upperBound += padding
+    }
+
+    return lowerBound to upperBound
+}
+
+/**
+ * Derives the reusable graph-display section from the latest data plus current matrix selections.
+ *
+ * This state is intentionally page-agnostic so other graph surfaces can reuse the same card/empty-state logic.
+ */
+internal fun graphDisplayUiState(
     channels: List<ChannelState>,
     selectedGraphSelections: Set<GraphSelection>,
-    selectedChannelCount: Int,
-    selectedDataSetCount: Int,
     receivedData: GraphsReceivedData
-): GraphsPageUiState {
+): GraphDisplayUiState {
     val availableDataSets = receivedData.availableDataSets()
     val selectableChannels = selectableGraphChannels(channels)
     val graphCards = selectableChannels
@@ -183,17 +320,40 @@ internal fun graphsPageUiState(
             }
         }
 
-    val configurationEmptyMessage = when {
-        selectableChannels.isEmpty() -> GRAPHS_ENABLE_CHANNELS_CONFIGURATION_MESSAGE
-        availableDataSets.isEmpty() -> GRAPHS_WAITING_FOR_DATA_MESSAGE
-        else -> null
-    }
-
     val emptyStateMessage = when {
         selectableChannels.isEmpty() -> GRAPHS_ENABLE_CHANNELS_GRAPH_MESSAGE
         availableDataSets.isEmpty() -> GRAPHS_WAITING_FOR_GRAPHS_MESSAGE
         selectedGraphSelections.isEmpty() -> GRAPHS_EMPTY_SELECTION_MESSAGE
         else -> GRAPHS_NO_MATCHING_DATA_MESSAGE
+    }
+
+    return GraphDisplayUiState(
+        graphCards = graphCards,
+        emptyStateMessage = emptyStateMessage
+    )
+}
+
+/** Derives the full page UI state from selections plus latest backend payloads. */
+internal fun graphsPageUiState(
+    isConfigurationExpanded: Boolean,
+    channels: List<ChannelState>,
+    selectedGraphSelections: Set<GraphSelection>,
+    selectedChannelCount: Int,
+    selectedDataSetCount: Int,
+    receivedData: GraphsReceivedData
+): GraphsPageUiState {
+    val availableDataSets = receivedData.availableDataSets()
+    val selectableChannels = selectableGraphChannels(channels)
+    val graphDisplay = graphDisplayUiState(
+        channels = channels,
+        selectedGraphSelections = selectedGraphSelections,
+        receivedData = receivedData
+    )
+
+    val configurationEmptyMessage = when {
+        selectableChannels.isEmpty() -> GRAPHS_ENABLE_CHANNELS_CONFIGURATION_MESSAGE
+        availableDataSets.isEmpty() -> GRAPHS_WAITING_FOR_DATA_MESSAGE
+        else -> null
     }
 
     return GraphsPageUiState(
@@ -231,8 +391,7 @@ internal fun graphsPageUiState(
                 }
             )
         },
-        graphCards = graphCards,
-        emptyStateMessage = emptyStateMessage
+        graphDisplay = graphDisplay
     )
 }
 
@@ -245,23 +404,33 @@ private fun graphCardUiState(
 ): GraphCardUiState? {
     if (!isSelected) return null
 
-    val summary = when (dataSetType) {
-        GraphDataSetType.FilteredSignal -> receivedData.filteredSignals[channel.id]?.let(::filteredSignalSummary)
-        GraphDataSetType.BandPowers -> receivedData.bandPowers[channel.id]?.let(::bandPowersSummary)
-        GraphDataSetType.Fft -> receivedData.fftResults[channel.id]?.let(::fftSummary)
+    val title = "${channel.name} • ${dataSetType.label}"
+
+    val (summary, renderModel) = when (dataSetType) {
+        GraphDataSetType.FilteredSignal -> receivedData.filteredSignals[channel.id]
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { samples ->
+                filteredSignalSummary(samples) to filteredSignalRenderModel(samples)
+            }
+
+        GraphDataSetType.BandPowers -> receivedData.bandPowers[channel.id]
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { bands ->
+                bandPowersSummary(bands) to bandPowersRenderModel(bands)
+            }
+
+        GraphDataSetType.Fft -> receivedData.fftResults[channel.id]
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { values ->
+                fftSummary(values) to fftRenderModel(values)
+            }
     } ?: return null
 
     return GraphCardUiState(
-        title = "${channel.name} • ${dataSetType.label}",
-        summary = summary
+        selection = GraphSelection(channelId = channel.id, dataSetType = dataSetType),
+        title = title,
+        summary = summary,
+        renderModel = renderModel
     )
 }
-
-
-
-
-
-
-
-
 

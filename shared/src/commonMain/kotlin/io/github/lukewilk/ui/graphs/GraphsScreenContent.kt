@@ -1,9 +1,10 @@
 package io.github.lukewilk.ui.graphs
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,9 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.selection.triStateToggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -30,12 +31,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
@@ -43,8 +46,6 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.semantics.role
 import io.github.lukewilk.ui.elements.cards.PanelCard
 import io.github.lukewilk.ui.elements.layout.VerticalSpacer
 import io.github.lukewilk.ui.elements.scroll.VerticalScrollCueBox
@@ -113,24 +114,32 @@ internal fun GraphsScreenContent(
                 onChannelSelectionChange = onChannelSelectionChange,
                 onDataSetSelectionChange = onDataSetSelectionChange
             )
-            if (uiState.graphCards.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = uiState.emptyStateMessage,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                uiState.graphCards.forEach { card ->
-                    GraphCard(card)
-                }
+            GraphDisplayContent(uiState = uiState.graphDisplay)
+        }
+    }
+}
+
+/** Reusable graph-display section that renders either graph cards or the shared empty-state message. */
+@Composable
+internal fun GraphDisplayContent(uiState: GraphDisplayUiState) {
+    if (uiState.graphCards.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = uiState.emptyStateMessage,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else {
+        uiState.graphCards.forEach { card ->
+            key(card.selection) {
+                GraphCard(card)
             }
         }
     }
@@ -405,13 +414,13 @@ private fun graphToggleStateDescription(state: ToggleableState, enabled: Boolean
     if (!enabled) return "Unavailable"
 
     return when (state) {
-    ToggleableState.On -> "Selected"
-    ToggleableState.Indeterminate -> "Partially selected"
-    ToggleableState.Off -> "Not selected"
+        ToggleableState.On -> "Selected"
+        ToggleableState.Indeterminate -> "Partially selected"
+        ToggleableState.Off -> "Not selected"
     }
 }
 
-/** Lightweight graph card placeholder until dedicated chart widgets are introduced. */
+/** Flat graph card that hosts a reusable graph surface plus a compact supporting summary. */
 @Composable
 private fun GraphCard(card: GraphCardUiState) {
     Card(
@@ -433,7 +442,13 @@ private fun GraphCard(card: GraphCardUiState) {
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            VerticalSpacer(4.dp)
+            VerticalSpacer(8.dp)
+            GraphSurface(
+                renderModel = card.renderModel,
+                title = card.title,
+                accentColor = graphAccentColor(card.selection.dataSetType)
+            )
+            VerticalSpacer(6.dp)
             Text(
                 text = card.summary,
                 style = MaterialTheme.typography.bodySmall,
@@ -443,18 +458,10 @@ private fun GraphCard(card: GraphCardUiState) {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Keeps dataset families visually distinct while still using the same reusable graph surface. */
+@Composable
+private fun graphAccentColor(dataSetType: GraphDataSetType): Color = when (dataSetType) {
+    GraphDataSetType.FilteredSignal -> MaterialTheme.colorScheme.primary
+    GraphDataSetType.BandPowers -> MaterialTheme.colorScheme.secondary
+    GraphDataSetType.Fft -> MaterialTheme.colorScheme.tertiary
+}

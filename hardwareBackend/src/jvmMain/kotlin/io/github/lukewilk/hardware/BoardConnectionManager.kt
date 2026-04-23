@@ -118,6 +118,25 @@ open class BoardConnectionManager(
         }
     }
 
+    /** Temporary synthetic dev-test wave used so the app shows a visible signal without manual setup. */
+    private fun defaultSyntheticDevWaveSpec(): SharedWaveSpec = SharedWaveSpec(
+        enabled = true,
+        type = SharedWaveType.SINE,
+        amplitude = 1.0,
+        frequencyHz = 10.0,
+        phaseShiftRad = 0.0
+    )
+
+    /** Seeds a default synthetic wave only when the synthetic board starts from an empty wave configuration. */
+    private fun applySyntheticDevWaveDefaults(state: HardwareState, isSyntheticBoard: Boolean): HardwareState {
+        if (!isSyntheticBoard || state.waveSpecs.isNotEmpty()) return state
+
+        return state.copy(
+            syntheticMode = SyntheticMode.WAVE_GENERATOR,
+            waveSpecs = listOf(defaultSyntheticDevWaveSpec())
+        )
+    }
+
     fun connect(boardId: BoardIds, serialPort: String, timeoutSeconds: Int = 0): Boolean {
         try {
             val params = BrainFlowInputParams()
@@ -182,16 +201,21 @@ open class BoardConnectionManager(
             val prevRldEnabled = stateStore.get().rldEnabled
             val prevSampling = stateStore.get().samplingRateHz
             val prevChannels = stateStore.get().channels
-            stateStore.update { it.copy(
-                connected = true,
-                streaming = false,
-                synthetic = isSyntheticBoard,
-                samplingRateHz = if (prevSampling > 0) prevSampling else detectedSamplingRate,
-                channels = if (prevChannels > 0) prevChannels else detectedChannels,
-                enabledChannels = if (prevEnabledChannels.isNotEmpty()) prevEnabledChannels else emptyList(),
-                rldEnabled = if (prevRldEnabled.isNotEmpty()) prevRldEnabled else emptyList(),
-                verifiedChannels = emptyList()
-            ) }
+            stateStore.update { currentState ->
+                applySyntheticDevWaveDefaults(
+                    state = currentState.copy(
+                        connected = true,
+                        streaming = false,
+                        synthetic = isSyntheticBoard,
+                        samplingRateHz = if (prevSampling > 0) prevSampling else detectedSamplingRate,
+                        channels = if (prevChannels > 0) prevChannels else detectedChannels,
+                        enabledChannels = if (prevEnabledChannels.isNotEmpty()) prevEnabledChannels else emptyList(),
+                        rldEnabled = if (prevRldEnabled.isNotEmpty()) prevRldEnabled else emptyList(),
+                        verifiedChannels = emptyList()
+                    ),
+                    isSyntheticBoard = isSyntheticBoard
+                )
+            }
             logger.d { "After connect state update, enabledChannels = ${stateStore.get().enabledChannels}" }
             logger.i { "After connect: enabledChannels = ${stateStore.get().enabledChannels}" }
             return true

@@ -1,6 +1,7 @@
 package io.github.lukewilk.hardware.synthetic
 
 import io.github.lukewilk.shared.HardwareState
+import io.github.lukewilk.shared.WaveSpec as SharedWaveSpec
 import io.github.lukewilk.shared.WaveType as SharedWaveType
 import co.touchlab.kermit.Logger
 import io.github.lukewilk.shared.logging.LoggerProvider
@@ -10,12 +11,19 @@ object SyntheticDataGenerator {
     private val logger: Logger
         get() = loggerFactory()
 
-    // keep phase accumulator per wave index for continuity across calls
-    private val phaseAccumulators = mutableMapOf<Int, Double>()
+    /** Keys stored phase continuity by synthetic signal configuration to avoid cross-talk between unrelated generators. */
+    private data class PhaseContextKey(
+        val samplingRateHz: Int,
+        val waveSpecs: List<SharedWaveSpec>
+    )
+
+    // keep phase accumulator per wave index and per signal configuration for continuity across calls
+    private val phaseAccumulatorsByContext = mutableMapOf<PhaseContextKey, MutableMap<Int, Double>>()
 
     /** Reset stored phase accumulators (useful for tests). */
+    @Synchronized
     fun resetPhases() {
-        phaseAccumulators.clear()
+        phaseAccumulatorsByContext.clear()
         logger.i { "phase accumulators reset" }
     }
 
@@ -23,6 +31,7 @@ object SyntheticDataGenerator {
      * Generate synthetic board-shaped data (rows = channels, cols = samples) based on shared HardwareState.
      * The generated waveform is the same on all enabled channels.
      */
+    @Synchronized
     fun generate(st: HardwareState, samples: Int): Array<DoubleArray> {
         val channels = st.channels
         val samplingRate = st.samplingRateHz
@@ -30,11 +39,17 @@ object SyntheticDataGenerator {
         if (!st.synthetic) return out
         if (channels <= 0 || samplingRate <= 0 || samples <= 0) return out
 
+        val phaseContextKey = PhaseContextKey(
+            samplingRateHz = samplingRate,
+            waveSpecs = st.waveSpecs.toList()
+        )
+        val phaseAccumulators = phaseAccumulatorsByContext.getOrPut(phaseContextKey) { mutableMapOf() }
+
         // Build initialPhases from accumulators (radians)
         val initialPhases = List(st.waveSpecs.size) { idx -> phaseAccumulators[idx] ?: 0.0 }
 
         // Map shared WaveSpec -> synthetic.WaveSpec (do NOT add accumulator here)
-        val genSpecs = st.waveSpecs.mapIndexed { idx, s ->
+        val genSpecs = st.waveSpecs.map { s ->
             WaveSpec(
                 enabled = s.enabled,
                 type = when (s.type) {

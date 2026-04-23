@@ -118,6 +118,29 @@ class MainScaffoldTest {
     }
 
     @Test
+    fun `main scaffold renders the injected graphs screen slot when the graphs tab is selected`() {
+        // Verifies callers can provide a backend-aware Graphs destination instead of falling back to the empty default GraphsScreen.
+        runComposeUiTest {
+            setContent {
+                MaterialTheme {
+                    MainScaffold(
+                        hardwareScreen = {
+                            androidx.compose.material3.Text("Hardware screen content")
+                        },
+                        graphsScreen = {
+                            androidx.compose.material3.Text("Injected Graphs Screen")
+                        }
+                    )
+                }
+            }
+
+            onNodeWithText("Graphs").performClick()
+            onNodeWithText("Injected Graphs Screen").assertIsDisplayed()
+            onNodeWithText("Hardware screen content").assertDoesNotExist()
+        }
+    }
+
+    @Test
     fun `main scaffold shows the collapsed expand icon after closing the sidebar`() {
         // Exercises the collapsed-sidebar header branch so the compact expand affordance and icon-only navigation stay visible.
         runComposeUiTest {

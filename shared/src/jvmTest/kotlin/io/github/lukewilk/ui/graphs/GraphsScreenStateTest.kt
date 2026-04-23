@@ -5,6 +5,7 @@ import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.ui.ChannelState
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 
 /**
  * JVM tests for Graphs-specific state derivation and formatting helpers.
@@ -156,8 +157,8 @@ class GraphsScreenStateTest {
     }
 
     @Test
-    fun `graphs page state exposes received dataset toggles summaries and filtered graph cards`() {
-        // Verifies the matrix columns and rows reflect available datasets while graph cards honor only selected cells with data.
+    fun `graphs page state exposes received dataset toggles summaries and reusable graph models`() {
+        // Verifies the matrix columns and rows reflect available datasets while graph cards expose reusable line/bar models.
         val channels = listOf(
             ChannelState(id = 0, name = "Channel 1", enabled = true, rld = false, status = "Configured"),
             ChannelState(id = 1, name = "Channel 2", enabled = false, rld = false, status = "Configured")
@@ -167,6 +168,27 @@ class GraphsScreenStateTest {
             bandPowers = mapOf(1 to listOf(BandPower("Alpha", 2.4))),
             fftResults = mapOf(0 to arrayOf(8.0 to 0.8, 10.0 to 1.2))
         )
+        val bandPowersReceivedData = receivedData.copy(
+            bandPowers = mapOf(0 to listOf(BandPower("Alpha", 2.4), BandPower("Beta", 1.2)))
+        )
+        val displayState = graphDisplayUiState(
+            channels = channels,
+            selectedGraphSelections = setOf(
+                GraphSelection(channelId = 0, dataSetType = GraphDataSetType.FilteredSignal),
+                GraphSelection(channelId = 1, dataSetType = GraphDataSetType.BandPowers)
+            ),
+            receivedData = receivedData
+        )
+        val bandPowersCard = graphDisplayUiState(
+            channels = channels,
+            selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.BandPowers)),
+            receivedData = bandPowersReceivedData
+        ).graphCards.first()
+        val fftCard = graphDisplayUiState(
+            channels = channels,
+            selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.Fft)),
+            receivedData = receivedData
+        ).graphCards.first()
 
         val uiState = graphsPageUiState(
             isConfigurationExpanded = true,
@@ -185,6 +207,28 @@ class GraphsScreenStateTest {
             receivedData.availableDataSets()
         )
         assertEquals(setOf(0, 1), receivedData.availableChannelIds())
+        assertEquals(1, displayState.graphCards.size)
+        val filteredCard = displayState.graphCards.first()
+        assertEquals(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.FilteredSignal), filteredCard.selection)
+        assertEquals("Channel 1 • Filtered Signal", filteredCard.title)
+        assertEquals(filteredSignalSummary(doubleArrayOf(-0.5, 0.25, 0.75)), filteredCard.summary)
+        val filteredRenderModel = assertIs<LineGraphRenderModel>(filteredCard.renderModel)
+        assertEquals(3, filteredRenderModel.points.size)
+        assertEquals("Oldest", filteredRenderModel.startLabel)
+        assertEquals("Newest", filteredRenderModel.endLabel)
+        val bandPowersRenderModel = assertIs<BarGraphRenderModel>(bandPowersCard.renderModel)
+        assertEquals(listOf("Alpha", "Beta"), bandPowersRenderModel.bars.map(GraphBarEntry::label))
+        val fftRenderModel = assertIs<LineGraphRenderModel>(fftCard.renderModel)
+        assertEquals("8 Hz", fftRenderModel.startLabel)
+        assertEquals("10 Hz", fftRenderModel.endLabel)
+        assertEquals(
+            GRAPHS_NO_MATCHING_DATA_MESSAGE,
+            graphDisplayUiState(
+                channels = channels,
+                selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.BandPowers)),
+                receivedData = receivedData
+            ).emptyStateMessage
+        )
         assertEquals(3, uiState.matrixColumnHeaders.size)
         assertEquals(true, uiState.matrixColumnHeaders.first().enabled)
         assertEquals(ToggleableState.On, uiState.matrixColumnHeaders.first().selectionState)
@@ -193,8 +237,11 @@ class GraphsScreenStateTest {
         assertEquals(true, uiState.channelMatrixRows.first().enabled)
         assertEquals(ToggleableState.Indeterminate, uiState.channelMatrixRows.first().selectionState)
         assertEquals(3, uiState.channelMatrixRows.first().dataSetCells.size)
+        assertEquals(displayState.graphCards, uiState.graphCards)
+        assertEquals(displayState.emptyStateMessage, uiState.emptyStateMessage)
         assertEquals("Channel 1 • Filtered Signal", uiState.graphCards.first().title)
         assertEquals(1, uiState.graphCards.size)
+        assertIs<LineGraphRenderModel>(uiState.graphCards.first().renderModel)
         assertEquals("Alpha: 2.4", bandPowersSummary(listOf(BandPower("Alpha", 2.4))))
         assertEquals("Latest 3 samples • min -0.5 • max 0.75 • last 0.75", filteredSignalSummary(doubleArrayOf(-0.5, 0.25, 0.75)))
         assertEquals("Latest 2 bins • peak 10 Hz @ 1.2", fftSummary(arrayOf(8.0 to 0.8, 10.0 to 1.2)))
@@ -232,12 +279,30 @@ class GraphsScreenStateTest {
         assertEquals(GRAPHS_WAITING_FOR_DATA_MESSAGE, waitingForDataState.configurationEmptyMessage)
         assertEquals(GRAPHS_WAITING_FOR_GRAPHS_MESSAGE, waitingForDataState.emptyStateMessage)
     }
+
+    @Test
+    fun `graphs render models cap oversized filtered and fft inputs at the denser point budgets`() {
+        // Verifies the renderer now receives the larger filtered/FFT point budgets instead of the earlier sparse caps.
+        val channels = listOf(
+            ChannelState(id = 0, name = "Channel 1", enabled = true, rld = false, status = "Configured")
+        )
+        val receivedData = GraphsReceivedData(
+            filteredSignals = mapOf(0 to DoubleArray(1_500) { index -> index.toDouble() / 10.0 }),
+            fftResults = mapOf(0 to Array(1_200) { index -> index.toDouble() to (index % 17).toDouble() })
+        )
+
+        val filteredCard = graphDisplayUiState(
+            channels = channels,
+            selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.FilteredSignal)),
+            receivedData = receivedData
+        ).graphCards.first()
+        val fftCard = graphDisplayUiState(
+            channels = channels,
+            selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.Fft)),
+            receivedData = receivedData
+        ).graphCards.first()
+
+        assertEquals(720, assertIs<LineGraphRenderModel>(filteredCard.renderModel).points.size)
+        assertEquals(560, assertIs<LineGraphRenderModel>(fftCard.renderModel).points.size)
+    }
 }
-
-
-
-
-
-
-
-

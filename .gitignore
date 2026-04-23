@@ -2,8 +2,8 @@
 
 # Ignore hidden files and directories
 .*
-!.github/
-!.github/**
+!.github/workflows
+!.github/workflows/**
 
 # IntelliJ / Android Studio
 *.iml

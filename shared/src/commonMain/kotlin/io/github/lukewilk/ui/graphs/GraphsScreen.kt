@@ -19,7 +19,11 @@ import io.github.lukewilk.ui.channelStatesFor
 @Composable
 fun GraphsScreen(backendApi: BackendApi? = null) {
     val hardwareState by (backendApi?.hardwareStateFlow?.collectAsState() ?: remember { mutableStateOf(HardwareState()) })
-    val receivedData = rememberGraphsReceivedData(backendApi)
+    val receivedData = rememberGraphsReceivedData(
+        backendApi = backendApi,
+        filteredHistorySize = hardwareState.windowSize,
+        filteredOverlap = hardwareState.overlap
+    )
     val channels = remember(hardwareState) { channelStatesFor(hardwareState) }
 
     var isConfigurationExpanded by remember { mutableStateOf(true) }

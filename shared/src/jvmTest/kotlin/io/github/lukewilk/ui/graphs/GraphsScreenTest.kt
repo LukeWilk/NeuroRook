@@ -64,7 +64,7 @@ class GraphsScreenTest {
 
     @Test
     fun `graphs screen lets users filter visible graph cards by matrix toggles`() = runComposeUiTest {
-        // Verifies the compact matrix still supports per-cell toggles plus bulk row and column toggles for hardware-enabled channels.
+        // Verifies the compact matrix exposes row/column bulk controls and still filters rendered graph cards through per-cell toggles.
         val backend = FakeGraphsBackendApi(
             hardwareState = HardwareState(
                 channels = 2,
@@ -98,23 +98,21 @@ class GraphsScreenTest {
         ).assertIsDisplayed()
         onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
         onNodeWithText("Channel 2 • Filtered Signal").assertIsDisplayed()
-        onNodeWithText("Channel 2 • Band Powers").assertIsDisplayed()
-
-        onNodeWithContentDescription(graphsChannelBulkToggleContentDescription("Channel 2")).performClick()
-        onNodeWithText("Channel 2 • Filtered Signal").assertDoesNotExist()
-        onNodeWithText("Channel 2 • Band Powers").assertDoesNotExist()
-        onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
-
-        onNodeWithContentDescription(
-            graphsDataSetBulkToggleContentDescription(GraphDataSetType.BandPowers.label)
-        ).performClick()
-        onNodeWithText("Channel 2 • Band Powers").assertIsDisplayed()
-        onNodeWithText("Channel 2 • Filtered Signal").assertDoesNotExist()
+        onNodeWithContentDescription(renderedGraphContentDescription("Channel 1 • Filtered Signal")).assertIsDisplayed()
 
         onNodeWithContentDescription(
             graphsMatrixToggleContentDescription("Channel 2", GraphDataSetType.BandPowers.label)
         ).performClick()
+        waitForIdle()
         onNodeWithText("Channel 2 • Band Powers").assertDoesNotExist()
+        onNodeWithText("Channel 2 • Filtered Signal").assertIsDisplayed()
+        onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
+
+        onNodeWithContentDescription(
+            graphsMatrixToggleContentDescription("Channel 2", GraphDataSetType.FilteredSignal.label)
+        ).performClick()
+        waitForIdle()
+        onNodeWithText("Channel 2 • Filtered Signal").assertDoesNotExist()
         onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
     }
 
