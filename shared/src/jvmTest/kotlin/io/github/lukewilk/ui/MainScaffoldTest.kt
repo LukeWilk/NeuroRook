@@ -119,7 +119,7 @@ class MainScaffoldTest {
 
     @Test
     fun `main scaffold keeps custom header visible while placeholders replace the hardware pane`() {
-        // Exercises remember(selectedTab, isSidebarOpen, headerContent) while preserving custom header content without fallback branding.
+        // Exercises remember(selectedTab, isSidebarOpen, headerContent) while preserving custom header content when Graphs swaps in its dedicated empty state.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -137,7 +137,8 @@ class MainScaffoldTest {
             onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithText("Branded Shell Header").assertIsDisplayed()
             onNodeWithText("Graphs").performClick()
-            onNodeWithText("Graphs screen coming soon...").assertIsDisplayed()
+            onNodeWithText(GRAPHS_EMPTY_STATE_MESSAGE).assertIsDisplayed()
+            onNodeWithText("Graphs screen coming soon...").assertDoesNotExist()
             onNodeWithText("Neuro Rook").assertDoesNotExist()
             onNodeWithText("Branded Shell Header").assertIsDisplayed()
             onNodeWithText("Hardware screen content").assertDoesNotExist()

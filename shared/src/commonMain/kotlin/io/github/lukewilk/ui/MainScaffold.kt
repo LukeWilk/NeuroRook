@@ -89,6 +89,7 @@ internal fun mainScaffoldPlaceholderLabel(
 ): String? = when (val destination = mainScaffoldSelectedDestination(selectedTab, menuItems)) {
     null,
     MainScaffoldDestination.Hardware,
+    MainScaffoldDestination.Graphs,
     MainScaffoldDestination.About -> null
     else -> destination.label
 }
@@ -150,6 +151,7 @@ fun MainScaffold(
         ) {
             when (val selectedDestination = uiState.selectedDestination) {
                 null, MainScaffoldDestination.Hardware -> hardwareScreen()
+                MainScaffoldDestination.Graphs -> GraphsScreen()
                 MainScaffoldDestination.About -> AboutScreen()
                 else -> PlaceholderScreen(selectedDestination.label)
             }
