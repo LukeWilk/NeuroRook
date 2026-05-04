@@ -1,6 +1,7 @@
 package io.github.lukewilk.ui.graphs
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
@@ -78,6 +82,12 @@ internal fun graphsChannelBulkToggleContentDescription(channelName: String): Str
 internal fun graphsDataSetBulkToggleContentDescription(dataSetLabel: String): String =
     "Toggle $dataSetLabel for all channels"
 
+/** Accessible content description for one graph display-option toggle in the side configuration panel. */
+internal fun graphsDisplayOptionContentDescription(optionLabel: String): String = "$optionLabel graph display option"
+
+/** Accessible content description for one refresh-interval radio option in the side configuration panel. */
+internal fun graphsRefreshIntervalContentDescription(optionLabel: String): String = "$optionLabel graph refresh interval"
+
 /** Renders the Graphs page body from already-derived UI state. */
 @Composable
 internal fun GraphsScreenContent(
@@ -85,7 +95,8 @@ internal fun GraphsScreenContent(
     onConfigurationExpandedChange: (Boolean) -> Unit,
     onGraphSelectionChange: (Int, GraphDataSetType, Boolean) -> Unit,
     onChannelSelectionChange: (Int, Boolean) -> Unit,
-    onDataSetSelectionChange: (GraphDataSetType, Boolean) -> Unit
+    onDataSetSelectionChange: (GraphDataSetType, Boolean) -> Unit,
+    onGraphViewOptionsChange: (GraphViewOptions) -> Unit
 ) {
     val scrollState = rememberScrollState()
     VerticalScrollCueBox(
@@ -112,16 +123,20 @@ internal fun GraphsScreenContent(
                 onConfigurationExpandedChange = onConfigurationExpandedChange,
                 onGraphSelectionChange = onGraphSelectionChange,
                 onChannelSelectionChange = onChannelSelectionChange,
-                onDataSetSelectionChange = onDataSetSelectionChange
+                onDataSetSelectionChange = onDataSetSelectionChange,
+                onGraphViewOptionsChange = onGraphViewOptionsChange
             )
-            GraphDisplayContent(uiState = uiState.graphDisplay)
+            GraphDisplayContent(
+                uiState = uiState.graphDisplay,
+                graphViewOptions = uiState.graphViewOptions
+            )
         }
     }
 }
 
 /** Reusable graph-display section that renders either graph cards or the shared empty-state message. */
 @Composable
-internal fun GraphDisplayContent(uiState: GraphDisplayUiState) {
+internal fun GraphDisplayContent(uiState: GraphDisplayUiState, graphViewOptions: GraphViewOptions) {
     if (uiState.graphCards.isEmpty()) {
         Box(
             modifier = Modifier
@@ -139,7 +154,7 @@ internal fun GraphDisplayContent(uiState: GraphDisplayUiState) {
     } else {
         uiState.graphCards.forEach { card ->
             key(card.selection) {
-                GraphCard(card)
+                GraphCard(card = card, graphViewOptions = graphViewOptions)
             }
         }
     }
@@ -152,7 +167,8 @@ private fun GraphsConfigurationCard(
     onConfigurationExpandedChange: (Boolean) -> Unit,
     onGraphSelectionChange: (Int, GraphDataSetType, Boolean) -> Unit,
     onChannelSelectionChange: (Int, Boolean) -> Unit,
-    onDataSetSelectionChange: (GraphDataSetType, Boolean) -> Unit
+    onDataSetSelectionChange: (GraphDataSetType, Boolean) -> Unit,
+    onGraphViewOptionsChange: (GraphViewOptions) -> Unit
 ) {
     PanelCard {
         Row(
@@ -196,23 +212,202 @@ private fun GraphsConfigurationCard(
 
         if (uiState.isConfigurationExpanded) {
             VerticalSpacer(10.dp)
-            SectionTitle(GRAPHS_CHANNELS_SECTION_TITLE)
-            VerticalSpacer(6.dp)
-            if (uiState.configurationEmptyMessage != null) {
-                Text(
-                    text = uiState.configurationEmptyMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                GraphSelectionMatrix(
-                    uiState = uiState,
-                    onGraphSelectionChange = onGraphSelectionChange,
-                    onChannelSelectionChange = onChannelSelectionChange,
-                    onDataSetSelectionChange = onDataSetSelectionChange
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val showSideBySide = maxWidth >= 700.dp
+                if (showSideBySide) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        GraphSelectionPanel(
+                            uiState = uiState,
+                            onGraphSelectionChange = onGraphSelectionChange,
+                            onChannelSelectionChange = onChannelSelectionChange,
+                            onDataSetSelectionChange = onDataSetSelectionChange,
+                            modifier = Modifier.weight(1f)
+                        )
+                        GraphOptionsPanel(
+                            graphViewOptions = uiState.graphViewOptions,
+                            onGraphViewOptionsChange = onGraphViewOptionsChange,
+                            modifier = Modifier.widthIn(min = 220.dp, max = 280.dp)
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GraphSelectionPanel(
+                            uiState = uiState,
+                            onGraphSelectionChange = onGraphSelectionChange,
+                            onChannelSelectionChange = onChannelSelectionChange,
+                            onDataSetSelectionChange = onDataSetSelectionChange
+                        )
+                        GraphOptionsPanel(
+                            graphViewOptions = uiState.graphViewOptions,
+                            onGraphViewOptionsChange = onGraphViewOptionsChange,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Wraps the graph-selection matrix and its waiting/empty messaging so it can sit beside the options panel. */
+@Composable
+private fun GraphSelectionPanel(
+    uiState: GraphsPageUiState,
+    onGraphSelectionChange: (Int, GraphDataSetType, Boolean) -> Unit,
+    onChannelSelectionChange: (Int, Boolean) -> Unit,
+    onDataSetSelectionChange: (GraphDataSetType, Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SectionTitle(GRAPHS_CHANNELS_SECTION_TITLE)
+        if (uiState.configurationEmptyMessage != null) {
+            Text(
+                text = uiState.configurationEmptyMessage,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            GraphSelectionMatrix(
+                uiState = uiState,
+                onGraphSelectionChange = onGraphSelectionChange,
+                onChannelSelectionChange = onChannelSelectionChange,
+                onDataSetSelectionChange = onDataSetSelectionChange
+            )
+        }
+    }
+}
+
+/** Compact side panel with purely visual graph controls that complement the matrix on wider screens. */
+@Composable
+private fun GraphOptionsPanel(
+    graphViewOptions: GraphViewOptions,
+    onGraphViewOptionsChange: (GraphViewOptions) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SectionTitle(GRAPHS_OPTIONS_SECTION_TITLE)
+            GraphOptionToggleRow(
+                label = "Show datapoints",
+                checked = graphViewOptions.showDataPoints,
+                onCheckedChange = { enabled ->
+                    onGraphViewOptionsChange(graphViewOptions.copy(showDataPoints = enabled))
+                }
+            )
+            GraphOptionToggleRow(
+                label = "Black background",
+                checked = graphViewOptions.useBlackBackground,
+                onCheckedChange = { enabled ->
+                    onGraphViewOptionsChange(graphViewOptions.copy(useBlackBackground = enabled))
+                }
+            )
+            GraphOptionToggleRow(
+                label = "Show grid",
+                checked = graphViewOptions.showGridLines,
+                onCheckedChange = { enabled ->
+                    onGraphViewOptionsChange(graphViewOptions.copy(showGridLines = enabled))
+                }
+            )
+            GraphOptionToggleRow(
+                label = "Fill filtered area",
+                checked = graphViewOptions.fillFilteredArea,
+                onCheckedChange = { enabled ->
+                    onGraphViewOptionsChange(graphViewOptions.copy(fillFilteredArea = enabled))
+                }
+            )
+            VerticalSpacer(2.dp)
+            Text(
+                text = GRAPHS_REFRESH_INTERVAL_LABEL,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            GraphRefreshInterval.entries.forEach { refreshInterval ->
+                GraphRefreshIntervalRow(
+                    refreshInterval = refreshInterval,
+                    selected = graphViewOptions.refreshInterval == refreshInterval,
+                    onSelected = {
+                        onGraphViewOptionsChange(graphViewOptions.copy(refreshInterval = refreshInterval))
+                    }
                 )
             }
         }
+    }
+}
+
+/** Reusable checkbox row for one graph display preference. */
+@Composable
+private fun GraphOptionToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = graphsDisplayOptionContentDescription(label) }
+            .toggleable(
+                value = checked,
+                role = Role.Checkbox,
+                onValueChange = onCheckedChange
+            )
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+/** Reusable radio row for one refresh cadence option. */
+@Composable
+private fun GraphRefreshIntervalRow(
+    refreshInterval: GraphRefreshInterval,
+    selected: Boolean,
+    onSelected: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = graphsRefreshIntervalContentDescription(refreshInterval.label) }
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onSelected
+            )
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = refreshInterval.label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -422,7 +617,7 @@ private fun graphToggleStateDescription(state: ToggleableState, enabled: Boolean
 
 /** Flat graph card that hosts a reusable graph surface plus a compact supporting summary. */
 @Composable
-private fun GraphCard(card: GraphCardUiState) {
+private fun GraphCard(card: GraphCardUiState, graphViewOptions: GraphViewOptions) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = graphCardCornerShape,
@@ -446,7 +641,8 @@ private fun GraphCard(card: GraphCardUiState) {
             GraphSurface(
                 renderModel = card.renderModel,
                 title = card.title,
-                accentColor = graphAccentColor(card.selection.dataSetType)
+                accentColor = graphAccentColor(card.selection.dataSetType),
+                viewOptions = graphViewOptions
             )
             VerticalSpacer(6.dp)
             Text(

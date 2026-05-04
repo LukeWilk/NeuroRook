@@ -20,6 +20,12 @@ internal const val GRAPHS_CONFIGURATION_COLLAPSE_TEXT = "Hide configuration"
 /** Section title for channel graph-selection controls. */
 internal const val GRAPHS_CHANNELS_SECTION_TITLE = "Channels"
 
+/** Section title for the graph display-options panel shown beside the selection matrix. */
+internal const val GRAPHS_OPTIONS_SECTION_TITLE = "Display Options"
+
+/** Label shown above refresh-interval choices inside the graph display-options panel. */
+internal const val GRAPHS_REFRESH_INTERVAL_LABEL = "Refresh interval"
+
 /** Label shown above the left-most matrix column that lists graph channels. */
 internal const val GRAPHS_MATRIX_CHANNEL_HEADER = "Channel"
 
@@ -56,6 +62,32 @@ internal data class GraphSelection(
     val dataSetType: GraphDataSetType
 )
 
+/** Supported UI refresh cadences used to throttle visible graph updates without affecting backend collection. */
+internal enum class GraphRefreshInterval(val label: String, val intervalMillis: Int) {
+    Immediate(label = "Immediate", intervalMillis = 0),
+    Fast(label = "100 ms", intervalMillis = 100),
+    Balanced(label = "250 ms", intervalMillis = 250),
+    Relaxed(label = "500 ms", intervalMillis = 500),
+    Slow(label = "1 s", intervalMillis = 1_000)
+}
+
+/** Shared graph-display preferences controlled from the Graphs configuration panel. */
+@Immutable
+internal data class GraphViewOptions(
+    val showDataPoints: Boolean = false,
+    val useBlackBackground: Boolean = false,
+    val showGridLines: Boolean = true,
+    val fillFilteredArea: Boolean = true,
+    val refreshInterval: GraphRefreshInterval = GraphRefreshInterval.Immediate
+)
+
+/** Shared axis labels used by graph surfaces to show multiple ticks plus an optional unit/title. */
+@Immutable
+internal data class GraphAxisLabels(
+    val ticks: List<String>,
+    val unitLabel: String? = null
+)
+
 /** Reusable graph point with a normalized horizontal position and a raw vertical value. */
 @Immutable
 internal data class GraphPoint(
@@ -82,8 +114,8 @@ internal data class LineGraphRenderModel(
     val maxY: Float,
     val showZeroLine: Boolean,
     val fillArea: Boolean,
-    val startLabel: String? = null,
-    val endLabel: String? = null
+    val yAxisLabels: GraphAxisLabels? = null,
+    val xAxisLabels: GraphAxisLabels? = null
 ) : GraphRenderModel
 
 /** Shared bar renderer input used by categorical graph cards such as band powers. */
@@ -91,7 +123,8 @@ internal data class LineGraphRenderModel(
 internal data class BarGraphRenderModel(
     val bars: List<GraphBarEntry>,
     val minY: Float,
-    val maxY: Float
+    val maxY: Float,
+    val yAxisLabels: GraphAxisLabels? = null
 ) : GraphRenderModel
 
 /** Minimal card model for a rendered graph section on the page body. */
@@ -161,6 +194,7 @@ internal data class GraphsPageUiState(
     val configurationEmptyMessage: String?,
     val matrixColumnHeaders: List<GraphMatrixColumnHeaderUiState>,
     val channelMatrixRows: List<GraphChannelMatrixRowUiState>,
+    val graphViewOptions: GraphViewOptions,
     val graphDisplay: GraphDisplayUiState
 ) {
     /** Backwards-compatible accessor for callers/tests that only need the rendered card list. */

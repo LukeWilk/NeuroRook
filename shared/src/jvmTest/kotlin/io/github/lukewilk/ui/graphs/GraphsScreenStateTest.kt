@@ -177,16 +177,19 @@ class GraphsScreenStateTest {
                 GraphSelection(channelId = 0, dataSetType = GraphDataSetType.FilteredSignal),
                 GraphSelection(channelId = 1, dataSetType = GraphDataSetType.BandPowers)
             ),
+            samplingRateHz = 2,
             receivedData = receivedData
         )
         val bandPowersCard = graphDisplayUiState(
             channels = channels,
             selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.BandPowers)),
+            samplingRateHz = 2,
             receivedData = bandPowersReceivedData
         ).graphCards.first()
         val fftCard = graphDisplayUiState(
             channels = channels,
             selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.Fft)),
+            samplingRateHz = 2,
             receivedData = receivedData
         ).graphCards.first()
 
@@ -199,6 +202,14 @@ class GraphsScreenStateTest {
             ),
             selectedChannelCount = 2,
             selectedDataSetCount = 2,
+            samplingRateHz = 2,
+            graphViewOptions = GraphViewOptions(
+                showDataPoints = false,
+                useBlackBackground = true,
+                showGridLines = false,
+                fillFilteredArea = false,
+                refreshInterval = GraphRefreshInterval.Relaxed
+            ),
             receivedData = receivedData
         )
 
@@ -214,18 +225,50 @@ class GraphsScreenStateTest {
         assertEquals(filteredSignalSummary(doubleArrayOf(-0.5, 0.25, 0.75)), filteredCard.summary)
         val filteredRenderModel = assertIs<LineGraphRenderModel>(filteredCard.renderModel)
         assertEquals(3, filteredRenderModel.points.size)
-        assertEquals("Oldest", filteredRenderModel.startLabel)
-        assertEquals("Newest", filteredRenderModel.endLabel)
+        assertEquals(
+            GraphAxisLabels(
+                ticks = listOf("0.75", "0.44", "0.12", "-0.19", "-0.5"),
+                unitLabel = "Signal (a.u.)"
+            ),
+            filteredRenderModel.yAxisLabels
+        )
+        assertEquals(
+            GraphAxisLabels(
+                ticks = listOf("-1 s", "-750 ms", "-500 ms", "-250 ms", "0 s"),
+                unitLabel = "Time"
+            ),
+            filteredRenderModel.xAxisLabels
+        )
         val bandPowersRenderModel = assertIs<BarGraphRenderModel>(bandPowersCard.renderModel)
         assertEquals(listOf("Alpha", "Beta"), bandPowersRenderModel.bars.map(GraphBarEntry::label))
+        assertEquals(
+            GraphAxisLabels(
+                ticks = listOf("2.4", "1.8", "1.2", "0.6", "0"),
+                unitLabel = "Power (a.u.)"
+            ),
+            bandPowersRenderModel.yAxisLabels
+        )
         val fftRenderModel = assertIs<LineGraphRenderModel>(fftCard.renderModel)
-        assertEquals("8 Hz", fftRenderModel.startLabel)
-        assertEquals("10 Hz", fftRenderModel.endLabel)
+        assertEquals(
+            GraphAxisLabels(
+                ticks = listOf("1.2", "0.9", "0.6", "0.3", "0"),
+                unitLabel = "Power (a.u.)"
+            ),
+            fftRenderModel.yAxisLabels
+        )
+        assertEquals(
+            GraphAxisLabels(
+                ticks = listOf("8 Hz", "8.5 Hz", "9 Hz", "9.5 Hz", "10 Hz"),
+                unitLabel = "Frequency"
+            ),
+            fftRenderModel.xAxisLabels
+        )
         assertEquals(
             GRAPHS_NO_MATCHING_DATA_MESSAGE,
             graphDisplayUiState(
                 channels = channels,
                 selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.BandPowers)),
+                samplingRateHz = 2,
                 receivedData = receivedData
             ).emptyStateMessage
         )
@@ -237,6 +280,11 @@ class GraphsScreenStateTest {
         assertEquals(true, uiState.channelMatrixRows.first().enabled)
         assertEquals(ToggleableState.Indeterminate, uiState.channelMatrixRows.first().selectionState)
         assertEquals(3, uiState.channelMatrixRows.first().dataSetCells.size)
+        assertEquals(false, uiState.graphViewOptions.showDataPoints)
+        assertEquals(true, uiState.graphViewOptions.useBlackBackground)
+        assertEquals(false, uiState.graphViewOptions.showGridLines)
+        assertEquals(false, uiState.graphViewOptions.fillFilteredArea)
+        assertEquals(GraphRefreshInterval.Relaxed, uiState.graphViewOptions.refreshInterval)
         assertEquals(displayState.graphCards, uiState.graphCards)
         assertEquals(displayState.emptyStateMessage, uiState.emptyStateMessage)
         assertEquals("Channel 1 • Filtered Signal", uiState.graphCards.first().title)
@@ -253,6 +301,8 @@ class GraphsScreenStateTest {
                 selectedGraphSelections = emptySet(),
                 selectedChannelCount = 0,
                 selectedDataSetCount = 0,
+                samplingRateHz = 2,
+                graphViewOptions = GraphViewOptions(),
                 receivedData = receivedData
             ).emptyStateMessage
         )
@@ -262,6 +312,8 @@ class GraphsScreenStateTest {
             selectedGraphSelections = emptySet(),
             selectedChannelCount = 0,
             selectedDataSetCount = 0,
+            samplingRateHz = 2,
+            graphViewOptions = GraphViewOptions(),
             receivedData = receivedData
         )
         assertEquals(GRAPHS_ENABLE_CHANNELS_CONFIGURATION_MESSAGE, noEnabledChannelsState.configurationEmptyMessage)
@@ -274,10 +326,14 @@ class GraphsScreenStateTest {
             selectedGraphSelections = emptySet(),
             selectedChannelCount = 1,
             selectedDataSetCount = 0,
+            samplingRateHz = 2,
+            graphViewOptions = GraphViewOptions(refreshInterval = GraphRefreshInterval.Balanced),
             receivedData = GraphsReceivedData()
         )
         assertEquals(GRAPHS_WAITING_FOR_DATA_MESSAGE, waitingForDataState.configurationEmptyMessage)
         assertEquals(GRAPHS_WAITING_FOR_GRAPHS_MESSAGE, waitingForDataState.emptyStateMessage)
+        assertEquals(GraphRefreshInterval.Balanced, waitingForDataState.graphViewOptions.refreshInterval)
+        assertEquals("Immediate", GraphRefreshInterval.Immediate.label)
     }
 
     @Test
@@ -294,11 +350,13 @@ class GraphsScreenStateTest {
         val filteredCard = graphDisplayUiState(
             channels = channels,
             selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.FilteredSignal)),
+            samplingRateHz = 250,
             receivedData = receivedData
         ).graphCards.first()
         val fftCard = graphDisplayUiState(
             channels = channels,
             selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.Fft)),
+            samplingRateHz = 250,
             receivedData = receivedData
         ).graphCards.first()
 

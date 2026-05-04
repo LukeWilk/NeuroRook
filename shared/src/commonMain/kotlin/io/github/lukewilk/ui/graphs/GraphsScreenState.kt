@@ -170,8 +170,17 @@ private const val maxRenderedLinePoints = 720
 /** Upper bound for streamed FFT bins because spectra can contain significantly more buckets than the viewport. */
 private const val maxRenderedSpectrumPoints = 560
 
+/** Number of vertical-axis values shown beside each graph so ranges are easier to read at a glance. */
+private const val graphVerticalAxisTickCount = 5
+
+/** Number of FFT horizontal labels shown below the spectrum for easier frequency reading. */
+private const val fftHorizontalAxisTickCount = 5
+
+/** Number of filtered-signal time labels shown below the scrolling waveform. */
+private const val filteredHorizontalAxisTickCount = 5
+
 /** Builds a bounded line-graph model from a raw filtered signal payload. */
-private fun filteredSignalRenderModel(samples: DoubleArray): LineGraphRenderModel {
+private fun filteredSignalRenderModel(samples: DoubleArray, samplingRateHz: Int): LineGraphRenderModel {
     val sampled = sampleSignal(samples, maxRenderedLinePoints)
     val graphBounds = graphBounds(
         minimum = sampled.minOrNull() ?: 0f,
@@ -185,8 +194,12 @@ private fun filteredSignalRenderModel(samples: DoubleArray): LineGraphRenderMode
         maxY = graphBounds.second,
         showZeroLine = true,
         fillArea = true,
-        startLabel = "Oldest",
-        endLabel = "Newest"
+        yAxisLabels = valueAxisLabels(
+            minY = graphBounds.first,
+            maxY = graphBounds.second,
+            unitLabel = "Signal (a.u.)"
+        ),
+        xAxisLabels = filteredSignalXAxisLabels(samples = samples, samplingRateHz = samplingRateHz)
     )
 }
 
@@ -204,7 +217,12 @@ private fun bandPowersRenderModel(bands: List<BandPower>): BarGraphRenderModel {
     return BarGraphRenderModel(
         bars = bars,
         minY = graphBounds.first,
-        maxY = graphBounds.second
+        maxY = graphBounds.second,
+        yAxisLabels = valueAxisLabels(
+            minY = graphBounds.first,
+            maxY = graphBounds.second,
+            unitLabel = "Power (a.u.)"
+        )
     )
 }
 
@@ -225,9 +243,64 @@ private fun fftRenderModel(values: Array<Pair<Double, Double>>): LineGraphRender
         maxY = graphBounds.second,
         showZeroLine = true,
         fillArea = false,
-        startLabel = "${formatGraphNumber(minFrequency.toDouble())} Hz",
-        endLabel = "${formatGraphNumber(maxFrequency.toDouble())} Hz"
+        yAxisLabels = valueAxisLabels(
+            minY = graphBounds.first,
+            maxY = graphBounds.second,
+            unitLabel = "Power (a.u.)"
+        ),
+        xAxisLabels = GraphAxisLabels(
+            ticks = ascendingAxisTickValues(
+                minimum = minFrequency,
+                maximum = maxFrequency,
+                count = fftHorizontalAxisTickCount
+            ).map { value -> "${formatGraphNumber(value.toDouble())} Hz" },
+            unitLabel = "Frequency"
+        )
     )
+}
+
+/** Builds filtered-signal time labels from sample history and hardware sampling rate when available. */
+private fun filteredSignalXAxisLabels(samples: DoubleArray, samplingRateHz: Int): GraphAxisLabels =
+    if (samplingRateHz > 0 && samples.size > 1) {
+        val totalDurationSeconds = samples.lastIndex.toFloat() / samplingRateHz.toFloat()
+        GraphAxisLabels(
+            ticks = ascendingAxisTickValues(
+                minimum = -totalDurationSeconds,
+                maximum = 0f,
+                count = filteredHorizontalAxisTickCount
+            ).map { value -> formatGraphDuration(value.toDouble()) },
+            unitLabel = "Time"
+        )
+    } else {
+        GraphAxisLabels(ticks = listOf("Oldest", "Newest"))
+    }
+
+/** Builds evenly spaced axis values and an optional unit/title label. */
+private fun valueAxisLabels(minY: Float, maxY: Float, unitLabel: String? = null): GraphAxisLabels = GraphAxisLabels(
+    ticks = axisTickValues(
+        minimum = minY,
+        maximum = maxY,
+        count = graphVerticalAxisTickCount
+    ).map { value -> formatGraphNumber(value.toDouble()) },
+    unitLabel = unitLabel
+)
+
+/** Builds evenly spaced axis values from minimum to maximum inclusive. */
+private fun axisTickValues(minimum: Float, maximum: Float, count: Int): List<Float> {
+    if (count <= 1) return listOf(maximum)
+    val range = maximum - minimum
+    return List(count) { index ->
+        maximum - (range * index.toFloat() / (count - 1).toFloat())
+    }
+}
+
+/** Builds evenly spaced horizontal-axis values from minimum to maximum inclusive. */
+private fun ascendingAxisTickValues(minimum: Float, maximum: Float, count: Int): List<Float> {
+    if (count <= 1) return listOf(minimum)
+    val range = maximum - minimum
+    return List(count) { index ->
+        minimum + (range * index.toFloat() / (count - 1).toFloat())
+    }
 }
 
 /** Evenly samples a streamed signal down to a render-friendly point count while keeping the newest value. */
@@ -304,6 +377,7 @@ private fun graphBounds(minimum: Float, maximum: Float, includeZero: Boolean): P
 internal fun graphDisplayUiState(
     channels: List<ChannelState>,
     selectedGraphSelections: Set<GraphSelection>,
+    samplingRateHz: Int,
     receivedData: GraphsReceivedData
 ): GraphDisplayUiState {
     val availableDataSets = receivedData.availableDataSets()
@@ -315,6 +389,7 @@ internal fun graphDisplayUiState(
                     channel = channel,
                     dataSetType = dataSetType,
                     isSelected = GraphSelection(channel.id, dataSetType) in selectedGraphSelections,
+                    samplingRateHz = samplingRateHz,
                     receivedData = receivedData
                 )
             }
@@ -340,6 +415,8 @@ internal fun graphsPageUiState(
     selectedGraphSelections: Set<GraphSelection>,
     selectedChannelCount: Int,
     selectedDataSetCount: Int,
+    samplingRateHz: Int,
+    graphViewOptions: GraphViewOptions,
     receivedData: GraphsReceivedData
 ): GraphsPageUiState {
     val availableDataSets = receivedData.availableDataSets()
@@ -347,6 +424,7 @@ internal fun graphsPageUiState(
     val graphDisplay = graphDisplayUiState(
         channels = channels,
         selectedGraphSelections = selectedGraphSelections,
+        samplingRateHz = samplingRateHz,
         receivedData = receivedData
     )
 
@@ -372,6 +450,7 @@ internal fun graphsPageUiState(
                 )
             )
         },
+        graphViewOptions = graphViewOptions,
         channelMatrixRows = selectableChannels.map { channel ->
             GraphChannelMatrixRowUiState(
                 channel = channel,
@@ -400,6 +479,7 @@ private fun graphCardUiState(
     channel: ChannelState,
     dataSetType: GraphDataSetType,
     isSelected: Boolean,
+    samplingRateHz: Int,
     receivedData: GraphsReceivedData
 ): GraphCardUiState? {
     if (!isSelected) return null
@@ -410,7 +490,7 @@ private fun graphCardUiState(
         GraphDataSetType.FilteredSignal -> receivedData.filteredSignals[channel.id]
             ?.takeIf { it.isNotEmpty() }
             ?.let { samples ->
-                filteredSignalSummary(samples) to filteredSignalRenderModel(samples)
+                filteredSignalSummary(samples) to filteredSignalRenderModel(samples, samplingRateHz)
             }
 
         GraphDataSetType.BandPowers -> receivedData.bandPowers[channel.id]

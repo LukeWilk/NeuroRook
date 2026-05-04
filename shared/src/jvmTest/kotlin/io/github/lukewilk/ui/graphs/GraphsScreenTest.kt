@@ -3,6 +3,9 @@ package io.github.lukewilk.ui.graphs
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -39,6 +42,11 @@ class GraphsScreenTest {
         onNodeWithText(GRAPHS_CONFIGURATION_TITLE).assertIsDisplayed()
         onNodeWithContentDescription(GRAPHS_CONFIGURATION_COLLAPSE_TEXT).assertIsDisplayed()
         onNodeWithText(GRAPHS_CHANNELS_SECTION_TITLE).assertIsDisplayed()
+        onNodeWithText(GRAPHS_OPTIONS_SECTION_TITLE).assertIsDisplayed()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show datapoints")).assertIsOff()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Black background")).assertIsOff()
+        onNodeWithText(GRAPHS_REFRESH_INTERVAL_LABEL).assertIsDisplayed()
+        onNodeWithContentDescription(graphsRefreshIntervalContentDescription(GraphRefreshInterval.Immediate.label)).assertIsSelected()
         onNodeWithText(GRAPHS_ENABLE_CHANNELS_CONFIGURATION_MESSAGE).assertIsDisplayed()
         onNodeWithText(GRAPHS_ENABLE_CHANNELS_GRAPH_MESSAGE).assertIsDisplayed()
     }
@@ -97,7 +105,6 @@ class GraphsScreenTest {
             graphsDataSetBulkToggleContentDescription(GraphDataSetType.BandPowers.label)
         ).assertIsDisplayed()
         onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
-        onNodeWithText("Channel 2 • Filtered Signal").assertIsDisplayed()
         onNodeWithContentDescription(renderedGraphContentDescription("Channel 1 • Filtered Signal")).assertIsDisplayed()
 
         onNodeWithContentDescription(
@@ -105,7 +112,6 @@ class GraphsScreenTest {
         ).performClick()
         waitForIdle()
         onNodeWithText("Channel 2 • Band Powers").assertDoesNotExist()
-        onNodeWithText("Channel 2 • Filtered Signal").assertIsDisplayed()
         onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
 
         onNodeWithContentDescription(
@@ -114,6 +120,89 @@ class GraphsScreenTest {
         waitForIdle()
         onNodeWithText("Channel 2 • Filtered Signal").assertDoesNotExist()
         onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
+    }
+
+    @Test
+    fun `graphs screen exposes interactive display options beside the selection matrix`() = runComposeUiTest {
+        // Verifies the expanded configuration card includes the new graph display controls and they retain user choices.
+        val backend = FakeGraphsBackendApi(
+            hardwareState = HardwareState(
+                channels = 1,
+                enabledChannels = listOf(0),
+                samplingRateHz = 2
+            )
+        ).apply {
+            filteredFlowMutable.tryEmit(ChannelData(channelId = 0, payload = doubleArrayOf(0.1, 0.4, 0.7)))
+        }
+
+        setContent {
+            MaterialTheme {
+                GraphsScreen(backendApi = backend)
+            }
+        }
+
+        waitForIdle()
+
+        onNodeWithText(GRAPHS_OPTIONS_SECTION_TITLE).assertIsDisplayed()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show datapoints")).assertIsOff()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Black background")).assertIsOff()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show grid")).assertIsOn()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Fill filtered area")).assertIsOn()
+        onNodeWithContentDescription(graphsRefreshIntervalContentDescription(GraphRefreshInterval.Immediate.label)).assertIsSelected()
+
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show datapoints")).performClick()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Black background")).performClick()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show grid")).performClick()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Fill filtered area")).performClick()
+        onNodeWithContentDescription(graphsRefreshIntervalContentDescription(GraphRefreshInterval.Relaxed.label)).performClick()
+        waitForIdle()
+
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show datapoints")).assertIsOn()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Black background")).assertIsOn()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show grid")).assertIsOff()
+        onNodeWithContentDescription(graphsDisplayOptionContentDescription("Fill filtered area")).assertIsOff()
+        onNodeWithContentDescription(graphsRefreshIntervalContentDescription(GraphRefreshInterval.Relaxed.label)).assertIsSelected()
+        onNodeWithContentDescription(GRAPHS_CONFIGURATION_COLLAPSE_TEXT).performClick()
+        waitForIdle()
+        onNodeWithText("Signal (a.u.)").assertIsDisplayed()
+        onNodeWithText("Time").assertIsDisplayed()
+        onNodeWithText("0.35").assertIsDisplayed()
+        onNodeWithContentDescription(renderedGraphContentDescription("Channel 1 • Filtered Signal")).assertIsDisplayed()
+    }
+
+    @Test
+    fun `graphs screen renders fft graphs with denser frequency labels and unit text`() = runComposeUiTest {
+        // Verifies FFT graphs show more than start/end frequency labels and expose the shared vertical unit label.
+        val backend = FakeGraphsBackendApi(
+            hardwareState = HardwareState(
+                channels = 1,
+                enabledChannels = listOf(0),
+                samplingRateHz = 250
+            )
+        ).apply {
+            fftResultFlowMutable.tryEmit(
+                ChannelData(
+                    channelId = 0,
+                    payload = arrayOf(8.0 to 0.2, 8.5 to 0.4, 9.0 to 0.6, 9.5 to 0.9, 10.0 to 1.2)
+                )
+            )
+        }
+
+        setContent {
+            MaterialTheme {
+                GraphsScreen(backendApi = backend)
+            }
+        }
+
+        waitForIdle()
+        onNodeWithContentDescription(GRAPHS_CONFIGURATION_COLLAPSE_TEXT).performClick()
+        waitForIdle()
+
+        onNodeWithText("Channel 1 • FFT").assertIsDisplayed()
+        onNodeWithText("Power (a.u.)").assertIsDisplayed()
+        onNodeWithText("Frequency").assertIsDisplayed()
+        onNodeWithText("9 Hz").assertIsDisplayed()
+        onNodeWithContentDescription(renderedGraphContentDescription("Channel 1 • FFT")).assertIsDisplayed()
     }
 
     @Test

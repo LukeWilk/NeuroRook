@@ -1,14 +1,17 @@
 package io.github.lukewilk.ui.graphs
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import io.github.lukewilk.shared.HardwareState
 import io.github.lukewilk.shared.api.BackendApi
 import io.github.lukewilk.ui.channelStatesFor
+import kotlinx.coroutines.delay
 
 /**
  * Entry point for the Graphs page.
@@ -19,10 +22,15 @@ import io.github.lukewilk.ui.channelStatesFor
 @Composable
 fun GraphsScreen(backendApi: BackendApi? = null) {
     val hardwareState by (backendApi?.hardwareStateFlow?.collectAsState() ?: remember { mutableStateOf(HardwareState()) })
-    val receivedData = rememberGraphsReceivedData(
+    val latestReceivedData = rememberGraphsReceivedData(
         backendApi = backendApi,
         filteredHistorySize = hardwareState.windowSize,
         filteredOverlap = hardwareState.overlap
+    )
+    var graphViewOptions by remember { mutableStateOf(GraphViewOptions()) }
+    val receivedData = rememberRenderedGraphsReceivedData(
+        latestReceivedData = latestReceivedData,
+        refreshInterval = graphViewOptions.refreshInterval
     )
     val channels = remember(hardwareState) { channelStatesFor(hardwareState) }
 
@@ -83,6 +91,7 @@ fun GraphsScreen(backendApi: BackendApi? = null) {
         effectiveSelectedGraphSelections,
         selectedChannelCount,
         selectedDataSetCount,
+        graphViewOptions,
         receivedData
     ) {
         graphsPageUiState(
@@ -91,6 +100,8 @@ fun GraphsScreen(backendApi: BackendApi? = null) {
             selectedGraphSelections = effectiveSelectedGraphSelections,
             selectedChannelCount = selectedChannelCount,
             selectedDataSetCount = selectedDataSetCount,
+            samplingRateHz = hardwareState.samplingRateHz,
+            graphViewOptions = graphViewOptions,
             receivedData = receivedData
         )
     }
@@ -125,8 +136,44 @@ fun GraphsScreen(backendApi: BackendApi? = null) {
                 values = graphSelectionsForDataSet(channels, dataSetType),
                 selected = selected
             )
-        }
+        },
+        onGraphViewOptionsChange = { graphViewOptions = it }
     )
+}
+
+/**
+ * Keeps collecting the latest backend payloads immediately while exposing throttled snapshots for rendering.
+ *
+ * This lets users slow down visible graph repaint cadence without dropping backend samples or changing the
+ * selection matrix behavior.
+ */
+@Composable
+private fun rememberRenderedGraphsReceivedData(
+    latestReceivedData: GraphsReceivedData,
+    refreshInterval: GraphRefreshInterval
+): GraphsReceivedData {
+    var renderedData by remember { mutableStateOf(latestReceivedData) }
+    val latestReceivedDataState = rememberUpdatedState(latestReceivedData)
+
+    LaunchedEffect(refreshInterval) {
+        if (refreshInterval.intervalMillis <= 0) {
+            renderedData = latestReceivedDataState.value
+            return@LaunchedEffect
+        }
+
+        while (true) {
+            renderedData = latestReceivedDataState.value
+            delay(refreshInterval.intervalMillis.toLong())
+        }
+    }
+
+    LaunchedEffect(latestReceivedData, refreshInterval) {
+        if (refreshInterval.intervalMillis <= 0) {
+            renderedData = latestReceivedData
+        }
+    }
+
+    return renderedData
 }
 
 
