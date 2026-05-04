@@ -578,19 +578,6 @@ internal fun selectedSerialPortSuggestionIndex(
         .takeIf { it >= 0 }
     ?: 0
 
-internal fun channelStatesFor(hardwareState: HardwareState): List<ChannelState> {
-    val channelCount = hardwareState.channels.takeIf { it > 0 } ?: 8
-    return List(channelCount) { index ->
-        ChannelState(
-            id = index,
-            name = "Channel ${index + 1}",
-            enabled = index in hardwareState.enabledChannels,
-            rld = index in hardwareState.rldEnabled,
-            status = if (index in hardwareState.verifiedChannels) "Configured" else "Not configured"
-        )
-    }
-}
-
 internal fun formatBoardLabelPart(part: String): String =
     part.lowercase().replaceFirstChar { char ->
         if (char.isLowerCase()) char.titlecase() else char.toString()

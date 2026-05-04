@@ -9,6 +9,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -26,7 +27,7 @@ class AppDesktopTest {
                     backendApi = null,
                     colorScheme = lightColorScheme(),
                     headerContent = null,
-                    renderScaffold = { _, _ ->
+                    renderScaffold = { _, _, _ ->
                         Text("CustomShell")
                     }
                 )
@@ -36,17 +37,21 @@ class AppDesktopTest {
         assertTrue(onAllNodesWithText("Neuro Rook").fetchSemanticsNodes().isEmpty())
     }
 
-    fun `default app scaffold renderer wires hardware body and header slots`() = runComposeUiTest {
+    @Test
+    fun `default app scaffold renderer wires hardware graphs and header slots`() = runComposeUiTest {
         setContent {
             MaterialTheme {
                 defaultAppScaffoldRenderer(
                     hardwareScreen = { Text("HardwareBodyMarker") },
+                    graphsScreen = { Text("GraphsBodyMarker") },
                     headerContent = { Text("HeaderSlotMarker") }
                 )
             }
         }
         onNodeWithText("HardwareBodyMarker").assertIsDisplayed()
         onNodeWithText("HeaderSlotMarker").assertIsDisplayed()
+        onNodeWithText("Graphs").performClick()
+        onNodeWithText("GraphsBodyMarker").assertIsDisplayed()
     }
 
     @Test
@@ -55,6 +60,7 @@ class AppDesktopTest {
             MaterialTheme {
                 defaultAppScaffoldRenderer(
                     hardwareScreen = { Text("HardwareBodyOnly") },
+                    graphsScreen = { Text("GraphsBodyOnly") },
                     headerContent = null
                 )
             }
@@ -82,6 +88,17 @@ class AppDesktopTest {
             }
         }
         onNodeWithText("Unable to load boards").assertIsDisplayed()
+    }
+
+    @Test
+    fun `default app graphs screen provider renders the graphs configuration shell`() = runComposeUiTest {
+        setContent {
+            MaterialTheme {
+                appGraphsScreen(null).invoke()
+            }
+        }
+        onNodeWithText("Graph Configuration").assertIsDisplayed()
+        onNodeWithText("Enable at least one hardware channel on the Hardware page to configure graph visibility.").assertIsDisplayed()
     }
 
     @Test

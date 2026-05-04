@@ -61,6 +61,7 @@ class CommonUiModelTest {
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 0, menuItems = menuItems))
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = -1, menuItems = menuItems))
         assertEquals("Protocols", mainScaffoldPlaceholderLabel(selectedTab = 3, menuItems = menuItems))
+        assertNull(mainScaffoldPlaceholderLabel(selectedTab = 8, menuItems = menuItems))
         assertEquals("Training", mainScaffoldPlaceholderLabel(selectedTab = 10, menuItems = menuItems))
         assertEquals("Test Signal Noise", mainScaffoldPlaceholderLabel(selectedTab = 1))
         assertNull(mainScaffoldPlaceholderLabel(selectedTab = 11, menuItems = menuItems))

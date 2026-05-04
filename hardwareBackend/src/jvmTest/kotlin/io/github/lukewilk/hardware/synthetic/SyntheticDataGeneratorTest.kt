@@ -123,6 +123,38 @@ internal class SyntheticDataGeneratorTest : SyntheticSignalTestSupport() {
         assertSamplesMatch(concatenated, combined[0])
     }
 
+    /** Verifies unrelated synthetic configurations do not steal phase continuity from each other. */
+    @Test
+    fun `phase continuity stays isolated per signal configuration`() {
+        val baseState = singleSineSyntheticState(
+            channels = 1,
+            samplingRateHz = 100,
+            enabledChannels = listOf(0),
+            frequencyHz = 5.0
+        )
+        val interferingState = singleSineSyntheticState(
+            channels = 16,
+            samplingRateHz = 100,
+            enabledChannels = listOf(0),
+            frequencyHz = 11.0
+        )
+        val samplesPerBlock = 40
+
+        SyntheticDataGenerator.resetPhases()
+        val combined = SyntheticDataGenerator.generate(baseState, samplesPerBlock * 2)
+
+        SyntheticDataGenerator.resetPhases()
+        val first = SyntheticDataGenerator.generate(baseState, samplesPerBlock)
+        SyntheticDataGenerator.generate(interferingState, samplesPerBlock)
+        val second = SyntheticDataGenerator.generate(baseState, samplesPerBlock)
+
+        val concatenated = DoubleArray(samplesPerBlock * 2)
+        for (index in 0 until samplesPerBlock) concatenated[index] = first[0][index]
+        for (index in 0 until samplesPerBlock) concatenated[samplesPerBlock + index] = second[0][index]
+
+        assertSamplesMatch(concatenated, combined[0])
+    }
+
     /** Verifies the debug logging lambda in generate() is evaluated when the logger allows debug severity. */
     @Test
     fun `generate evaluates debug logging when configured logger allows it`() {
