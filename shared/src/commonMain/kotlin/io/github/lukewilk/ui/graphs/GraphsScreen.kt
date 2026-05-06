@@ -102,7 +102,8 @@ fun GraphsScreen(backendApi: BackendApi? = null) {
             selectedDataSetCount = selectedDataSetCount,
             samplingRateHz = hardwareState.samplingRateHz,
             graphViewOptions = graphViewOptions,
-            receivedData = receivedData
+            receivedData = receivedData,
+            bands = hardwareState.bands
         )
     }
 

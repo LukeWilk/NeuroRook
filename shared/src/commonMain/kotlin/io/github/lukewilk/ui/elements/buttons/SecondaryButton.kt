@@ -19,8 +19,10 @@ fun SecondaryButton(
         enabled = enabled,
         shape = ButtonShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            // prefer primaryContainer for SecondaryButton to avoid system-derived secondaryContainer
+            // looking out of place on some desktop themes; primaryContainer is a safer accent
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
     ) {
         ButtonLabel(text = text)

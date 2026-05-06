@@ -10,6 +10,7 @@ import io.github.lukewilk.shared.WaveType as SharedWaveType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.math.abs
 
 /**
  * Output-shape, enabled-channel, and phase-reset tests for `SyntheticDataGenerator`.
@@ -104,6 +105,70 @@ internal class SyntheticDataGeneratorTest : SyntheticSignalTestSupport() {
         assertTrue(output[0].any { it != 0.0 }, "Combined enabled wave types should generate a non-zero signal")
     }
 
+    @Test
+    fun `generate returns zeros when all wave specs are disabled`() {
+        val state = HardwareState(
+            channels = 2,
+            samplingRateHz = 128,
+            synthetic = true,
+            enabledChannels = listOf(0, 1),
+            waveSpecs = listOf(
+                WaveSpec(enabled = false, type = SharedWaveType.SINE, amplitude = 1.0, frequencyHz = 6.0, phaseShiftRad = 0.0),
+                WaveSpec(enabled = false, type = SharedWaveType.SQUARE, amplitude = 0.8, frequencyHz = 4.0, phaseShiftRad = 0.1)
+            )
+        )
+
+        SyntheticDataGenerator.resetPhases()
+        val output = SyntheticDataGenerator.generate(state, 32)
+
+        // All outputs should be zeros because no spec is enabled
+        assertTrue(output.all { row -> row.all { it == 0.0 } })
+    }
+
+    @Test
+    fun `generate does not emit to channels that are not enabled even when specs target them`() {
+        val state = HardwareState(
+            channels = 3,
+            samplingRateHz = 128,
+            synthetic = true,
+            enabledChannels = listOf(0), // only channel 0 enabled
+            waveSpecs = listOf(
+                WaveSpec(enabled = true, type = SharedWaveType.SINE, amplitude = 1.0, frequencyHz = 6.0, phaseShiftRad = 0.0, channels = listOf(1,2))
+            )
+        )
+
+        SyntheticDataGenerator.resetPhases()
+        val output = SyntheticDataGenerator.generate(state, 32)
+
+        // Per-wave channel assignments should be authoritative: even though global enabledChannels
+        // contains only channel 0, this spec targets channels 1 and 2 and should therefore
+        // produce non-zero output on those channels.
+        assertTrue(output[1].any { it != 0.0 }, "Spec-targeted channel 1 should produce non-zero samples")
+        assertTrue(output[2].any { it != 0.0 }, "Spec-targeted channel 2 should produce non-zero samples")
+        // Channel 0 should remain zero because it was not targeted by the spec.
+        assertTrue(output[0].all { it == 0.0 }, "Channel 0 was not targeted and should remain zero-filled")
+    }
+
+    @Test
+    fun `single sine amplitude respects specified amplitude bound`() {
+        val state = HardwareState(
+            channels = 1,
+            samplingRateHz = 256,
+            synthetic = true,
+            enabledChannels = listOf(0),
+            waveSpecs = listOf(
+                WaveSpec(enabled = true, type = SharedWaveType.SINE, amplitude = 1.0, frequencyHz = 10.0, phaseShiftRad = 0.0, channels = listOf(0))
+            )
+        )
+
+        SyntheticDataGenerator.resetPhases()
+        val output = SyntheticDataGenerator.generate(state, 1024)
+
+        // For a single sine with amplitude 1.0 the absolute sample values should not exceed 1.0
+        val maxAbs = output[0].maxOfOrNull { v -> abs(v) } ?: 0.0
+        assertTrue(maxAbs <= 1.0001, "Expected max abs <= 1.0, got $maxAbs")
+    }
+
     /** Verifies resetting phases makes two sequential blocks match one combined generation exactly. */
     @Test
     fun `phase reset makes concatenated sequential blocks match a combined block`() {
@@ -121,6 +186,77 @@ internal class SyntheticDataGeneratorTest : SyntheticSignalTestSupport() {
         for (index in 0 until samplesPerBlock) concatenated[samplesPerBlock + index] = second[0][index]
 
         assertSamplesMatch(concatenated, combined[0])
+    }
+
+    /** Verifies appending a disabled second wave mid-stream does not reset phase continuity for the existing wave. */
+    @Test
+    fun `adding disabled second wave mid stream preserves existing wave continuity`() {
+        val samplesBeforeAdd = 25
+        val samplesAfterAdd = 20
+        val singleWaveState = HardwareState(
+            channels = 1,
+            samplingRateHz = 100,
+            synthetic = true,
+            enabledChannels = listOf(0),
+            waveSpecs = listOf(
+                WaveSpec(enabled = true, type = SharedWaveType.SINE, amplitude = 1.0, frequencyHz = 5.0, phaseShiftRad = 0.0)
+            )
+        )
+        val expandedState = singleWaveState.copy(
+            waveSpecs = singleWaveState.waveSpecs + WaveSpec(
+                enabled = false,
+                type = SharedWaveType.SINE,
+                amplitude = 1.0,
+                frequencyHz = 5.0,
+                phaseShiftRad = 0.0
+            )
+        )
+
+        SyntheticDataGenerator.resetPhases()
+        val expectedCombined = SyntheticDataGenerator.generate(singleWaveState, samplesBeforeAdd + samplesAfterAdd)[0]
+
+        SyntheticDataGenerator.resetPhases()
+        val firstBlock = SyntheticDataGenerator.generate(singleWaveState, samplesBeforeAdd)[0]
+        val secondBlock = SyntheticDataGenerator.generate(expandedState, samplesAfterAdd)[0]
+        val concatenated = DoubleArray(samplesBeforeAdd + samplesAfterAdd).also { combined ->
+            System.arraycopy(firstBlock, 0, combined, 0, samplesBeforeAdd)
+            System.arraycopy(secondBlock, 0, combined, samplesBeforeAdd, samplesAfterAdd)
+        }
+
+        assertSamplesMatch(concatenated, expectedCombined, label = "Post-add sample")
+    }
+
+    /** Verifies enabling a second identical wave mid-stream keeps it phase-aligned with the already-running wave. */
+    @Test
+    fun `enabling second identical wave mid stream doubles the live waveform instead of restarting phase`() {
+        val samplesBeforeEnable = 25
+        val samplesAfterEnable = 20
+        val initiallySingleWaveState = HardwareState(
+            channels = 1,
+            samplingRateHz = 100,
+            synthetic = true,
+            enabledChannels = listOf(0),
+            waveSpecs = listOf(
+                WaveSpec(enabled = true, type = SharedWaveType.SINE, amplitude = 1.0, frequencyHz = 5.0, phaseShiftRad = 0.0),
+                WaveSpec(enabled = false, type = SharedWaveType.SINE, amplitude = 1.0, frequencyHz = 5.0, phaseShiftRad = 0.0)
+            )
+        )
+        val bothWavesEnabledState = initiallySingleWaveState.copy(
+            waveSpecs = initiallySingleWaveState.waveSpecs.mapIndexed { index, wave ->
+                if (index == 1) wave.copy(enabled = true) else wave
+            }
+        )
+
+        SyntheticDataGenerator.resetPhases()
+        SyntheticDataGenerator.generate(initiallySingleWaveState, samplesBeforeEnable)
+        val enabledBlock = SyntheticDataGenerator.generate(bothWavesEnabledState, samplesAfterEnable)[0]
+
+        SyntheticDataGenerator.resetPhases()
+        SyntheticDataGenerator.generate(initiallySingleWaveState, samplesBeforeEnable)
+        val continuingSingleWaveBlock = SyntheticDataGenerator.generate(initiallySingleWaveState, samplesAfterEnable)[0]
+        val expectedDoubledBlock = DoubleArray(samplesAfterEnable) { index -> continuingSingleWaveBlock[index] * 2.0 }
+
+        assertSamplesMatch(enabledBlock, expectedDoubledBlock, label = "Enabled-wave sample")
     }
 
     /** Verifies unrelated synthetic configurations do not steal phase continuity from each other. */

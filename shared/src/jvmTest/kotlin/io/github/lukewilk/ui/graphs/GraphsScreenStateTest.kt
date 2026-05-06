@@ -3,6 +3,7 @@ package io.github.lukewilk.ui.graphs
 import androidx.compose.ui.state.ToggleableState
 import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.ui.ChannelState
+import io.github.lukewilk.shared.Band
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -154,6 +155,37 @@ class GraphsScreenStateTest {
             )
         )
         assertEquals("2 channels selected • 1 data set selected", graphConfigurationSummary(2, 1))
+    }
+
+    @Test
+    fun `band powers render order follows configured bands`() {
+        val channels = listOf(
+            ChannelState(id = 0, name = "Channel 1", enabled = true, rld = false, status = "Configured")
+        )
+
+        // Received data has bands in arbitrary order
+        val receivedData = GraphsReceivedData(
+            bandPowers = mapOf(0 to listOf(BandPower("Alpha", 2.4), BandPower("Delta", 1.2), BandPower("Theta", 3.0)))
+        )
+
+        // Configured bands (unsorted) — visuals should use lowHz ascending order: Delta, Theta, Alpha
+        val bandsConfig = listOf(
+            Band(name = "Alpha", lowHz = 8.0, highHz = 12.0),
+            Band(name = "Delta", lowHz = 0.5, highHz = 4.0),
+            Band(name = "Theta", lowHz = 4.0, highHz = 8.0)
+        )
+
+        val displayState = graphDisplayUiState(
+            channels = channels,
+            selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.BandPowers)),
+            samplingRateHz = 2,
+            receivedData = receivedData,
+            bands = bandsConfig
+        )
+
+        val bandPowersCard = displayState.graphCards.first()
+        val barModel = bandPowersCard.renderModel as BarGraphRenderModel
+        assertEquals(listOf("Delta", "Theta", "Alpha"), barModel.bars.map { it.label })
     }
 
     @Test

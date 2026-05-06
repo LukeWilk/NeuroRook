@@ -1,6 +1,7 @@
 package io.github.lukewilk.ui.graphs
 
 import androidx.compose.ui.state.ToggleableState
+import io.github.lukewilk.shared.Band
 import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.ui.ChannelState
 import kotlin.math.abs
@@ -204,8 +205,39 @@ private fun filteredSignalRenderModel(samples: DoubleArray, samplingRateHz: Int)
 }
 
 /** Builds a compact categorical bar graph for band-power payloads. */
-private fun bandPowersRenderModel(bands: List<BandPower>): BarGraphRenderModel {
-    val bars = bands.map { band ->
+private fun bandPowersRenderModel(bands: List<BandPower>, bandsConfig: List<Band>? = null): BarGraphRenderModel {
+    // Ordering strategy:
+    // 1) If an explicit `bandsConfig` is provided, use its ascending lowHz (low frequency first)
+    //    order and match BandPower entries to the config by case-insensitive containment of the
+    //    configured band name inside the BandPower.name. This allows using user-declared bands
+    //    (or HardwareState.bands) to drive visual ordering.
+    // 2) Otherwise, fall back to a canonical EEG token order (delta, theta, alpha, beta, gamma)
+    //    with case-insensitive containment matching.
+    val sorted = if (!bandsConfig.isNullOrEmpty()) {
+        val configOrder = bandsConfig.sortedBy { it.lowHz }
+        bands.sortedWith(compareBy(
+            { bp: BandPower ->
+                val name = bp.name.lowercase()
+                val idx = configOrder.indexOfFirst { cfg -> name.contains(cfg.name.lowercase()) }
+                if (idx >= 0) idx else configOrder.size
+            },
+            { bp: BandPower -> bp.name.lowercase() }
+        ))
+    } else {
+        // Ensure a canonical frequency order for band visuals: prefer Delta, Theta, Alpha, Beta, Gamma
+        // Be robust to casing and slightly different band name formats (e.g. "delta", "Delta (0.5-4Hz)").
+        val preferredOrder = listOf("delta", "theta", "alpha", "beta", "gamma")
+        bands.sortedWith(compareBy(
+            { b: BandPower ->
+                val name = b.name.lowercase()
+                val idx = preferredOrder.indexOfFirst { token -> name.contains(token) }
+                if (idx >= 0) idx else preferredOrder.size
+            },
+            { b: BandPower -> b.name.lowercase() }
+        ))
+    }
+
+    val bars = sorted.map { band ->
         GraphBarEntry(label = band.name, value = band.power.toFloat())
     }
     val graphBounds = graphBounds(
@@ -378,7 +410,8 @@ internal fun graphDisplayUiState(
     channels: List<ChannelState>,
     selectedGraphSelections: Set<GraphSelection>,
     samplingRateHz: Int,
-    receivedData: GraphsReceivedData
+    receivedData: GraphsReceivedData,
+    bands: List<Band>? = null
 ): GraphDisplayUiState {
     val availableDataSets = receivedData.availableDataSets()
     val selectableChannels = selectableGraphChannels(channels)
@@ -390,7 +423,8 @@ internal fun graphDisplayUiState(
                     dataSetType = dataSetType,
                     isSelected = GraphSelection(channel.id, dataSetType) in selectedGraphSelections,
                     samplingRateHz = samplingRateHz,
-                    receivedData = receivedData
+                    receivedData = receivedData,
+                    bandsConfig = bands
                 )
             }
         }
@@ -417,7 +451,8 @@ internal fun graphsPageUiState(
     selectedDataSetCount: Int,
     samplingRateHz: Int,
     graphViewOptions: GraphViewOptions,
-    receivedData: GraphsReceivedData
+    receivedData: GraphsReceivedData,
+    bands: List<Band>? = null
 ): GraphsPageUiState {
     val availableDataSets = receivedData.availableDataSets()
     val selectableChannels = selectableGraphChannels(channels)
@@ -425,7 +460,8 @@ internal fun graphsPageUiState(
         channels = channels,
         selectedGraphSelections = selectedGraphSelections,
         samplingRateHz = samplingRateHz,
-        receivedData = receivedData
+        receivedData = receivedData,
+        bands = bands
     )
 
     val configurationEmptyMessage = when {
@@ -480,7 +516,8 @@ private fun graphCardUiState(
     dataSetType: GraphDataSetType,
     isSelected: Boolean,
     samplingRateHz: Int,
-    receivedData: GraphsReceivedData
+    receivedData: GraphsReceivedData,
+    bandsConfig: List<Band>? = null
 ): GraphCardUiState? {
     if (!isSelected) return null
 
@@ -496,7 +533,7 @@ private fun graphCardUiState(
         GraphDataSetType.BandPowers -> receivedData.bandPowers[channel.id]
             ?.takeIf { it.isNotEmpty() }
             ?.let { bands ->
-                bandPowersSummary(bands) to bandPowersRenderModel(bands)
+                bandPowersSummary(bands) to bandPowersRenderModel(bands, bandsConfig)
             }
 
         GraphDataSetType.Fft -> receivedData.fftResults[channel.id]

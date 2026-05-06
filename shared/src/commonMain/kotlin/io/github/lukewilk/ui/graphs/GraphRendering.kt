@@ -447,7 +447,3 @@ private data class GraphFrame(
         return bottom - (height * normalized)
     }
 }
-
-
-
-
