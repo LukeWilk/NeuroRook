@@ -3,6 +3,7 @@ package io.github.lukewilk.ui.graphs
 import androidx.compose.ui.state.ToggleableState
 import io.github.lukewilk.shared.model.BandPower
 import io.github.lukewilk.ui.ChannelState
+import io.github.lukewilk.shared.Band
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -157,6 +158,37 @@ class GraphsScreenStateTest {
     }
 
     @Test
+    fun `band powers render order follows configured bands`() {
+        val channels = listOf(
+            ChannelState(id = 0, name = "Channel 1", enabled = true, rld = false, status = "Configured")
+        )
+
+        // Received data has bands in arbitrary order
+        val receivedData = GraphsReceivedData(
+            bandPowers = mapOf(0 to listOf(BandPower("Alpha", 2.4), BandPower("Delta", 1.2), BandPower("Theta", 3.0)))
+        )
+
+        // Configured bands (unsorted) — visuals should use lowHz ascending order: Delta, Theta, Alpha
+        val bandsConfig = listOf(
+            Band(name = "Alpha", lowHz = 8.0, highHz = 12.0),
+            Band(name = "Delta", lowHz = 0.5, highHz = 4.0),
+            Band(name = "Theta", lowHz = 4.0, highHz = 8.0)
+        )
+
+        val displayState = graphDisplayUiState(
+            channels = channels,
+            selectedGraphSelections = setOf(GraphSelection(channelId = 0, dataSetType = GraphDataSetType.BandPowers)),
+            samplingRateHz = 2,
+            receivedData = receivedData,
+            bands = bandsConfig
+        )
+
+        val bandPowersCard = displayState.graphCards.first()
+        val barModel = bandPowersCard.renderModel as BarGraphRenderModel
+        assertEquals(listOf("Delta", "Theta", "Alpha"), barModel.bars.map { it.label })
+    }
+
+    @Test
     fun `graphs page state exposes received dataset toggles summaries and reusable graph models`() {
         // Verifies the matrix columns and rows reflect available datasets while graph cards expose reusable line/bar models.
         val channels = listOf(
@@ -208,7 +240,8 @@ class GraphsScreenStateTest {
                 useBlackBackground = true,
                 showGridLines = false,
                 fillFilteredArea = false,
-                refreshInterval = GraphRefreshInterval.Relaxed
+                refreshInterval = GraphRefreshInterval.Relaxed,
+                filteredHistoryWindow = GraphFilteredHistoryWindow.TwoSeconds
             ),
             receivedData = receivedData
         )
@@ -285,6 +318,7 @@ class GraphsScreenStateTest {
         assertEquals(false, uiState.graphViewOptions.showGridLines)
         assertEquals(false, uiState.graphViewOptions.fillFilteredArea)
         assertEquals(GraphRefreshInterval.Relaxed, uiState.graphViewOptions.refreshInterval)
+        assertEquals(GraphFilteredHistoryWindow.TwoSeconds, uiState.graphViewOptions.filteredHistoryWindow)
         assertEquals(displayState.graphCards, uiState.graphCards)
         assertEquals(displayState.emptyStateMessage, uiState.emptyStateMessage)
         assertEquals("Channel 1 • Filtered Signal", uiState.graphCards.first().title)
@@ -333,7 +367,10 @@ class GraphsScreenStateTest {
         assertEquals(GRAPHS_WAITING_FOR_DATA_MESSAGE, waitingForDataState.configurationEmptyMessage)
         assertEquals(GRAPHS_WAITING_FOR_GRAPHS_MESSAGE, waitingForDataState.emptyStateMessage)
         assertEquals(GraphRefreshInterval.Balanced, waitingForDataState.graphViewOptions.refreshInterval)
+        assertEquals(GraphFilteredHistoryWindow.FiveSeconds, waitingForDataState.graphViewOptions.filteredHistoryWindow)
         assertEquals("Immediate", GraphRefreshInterval.Immediate.label)
+        assertEquals(16, graphRefreshDelayMillis(GraphRefreshInterval.Immediate))
+        assertEquals(250, graphRefreshDelayMillis(GraphRefreshInterval.Balanced))
     }
 
     @Test

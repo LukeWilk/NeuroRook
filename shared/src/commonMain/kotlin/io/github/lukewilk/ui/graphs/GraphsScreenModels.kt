@@ -26,6 +26,9 @@ internal const val GRAPHS_OPTIONS_SECTION_TITLE = "Display Options"
 /** Label shown above refresh-interval choices inside the graph display-options panel. */
 internal const val GRAPHS_REFRESH_INTERVAL_LABEL = "Refresh interval"
 
+/** Label shown above filtered-history choices inside the graph display-options panel. */
+internal const val GRAPHS_FILTERED_HISTORY_LABEL = "Filtered history"
+
 /** Label shown above the left-most matrix column that lists graph channels. */
 internal const val GRAPHS_MATRIX_CHANNEL_HEADER = "Channel"
 
@@ -71,6 +74,20 @@ internal enum class GraphRefreshInterval(val label: String, val intervalMillis: 
     Slow(label = "1 s", intervalMillis = 1_000)
 }
 
+/** Supported filtered-signal history durations shown in the Graphs display-options panel. */
+internal enum class GraphFilteredHistoryWindow(val label: String, val seconds: Int) {
+    OneSecond(label = "1 s", seconds = 1),
+    TwoSeconds(label = "2 s", seconds = 2),
+    FiveSeconds(label = "5 s", seconds = 5),
+    TenSeconds(label = "10 s", seconds = 10)
+}
+
+/** Resolves the pacing delay for visible graph refreshes; immediate mode is presented at a steady ~60 FPS. */
+internal fun graphRefreshDelayMillis(refreshInterval: GraphRefreshInterval): Int = when (refreshInterval) {
+    GraphRefreshInterval.Immediate -> 16
+    else -> refreshInterval.intervalMillis
+}
+
 /** Shared graph-display preferences controlled from the Graphs configuration panel. */
 @Immutable
 internal data class GraphViewOptions(
@@ -78,7 +95,8 @@ internal data class GraphViewOptions(
     val useBlackBackground: Boolean = false,
     val showGridLines: Boolean = true,
     val fillFilteredArea: Boolean = true,
-    val refreshInterval: GraphRefreshInterval = GraphRefreshInterval.Immediate
+    val refreshInterval: GraphRefreshInterval = GraphRefreshInterval.Immediate,
+    val filteredHistoryWindow: GraphFilteredHistoryWindow = GraphFilteredHistoryWindow.FiveSeconds
 )
 
 /** Shared axis labels used by graph surfaces to show multiple ticks plus an optional unit/title. */

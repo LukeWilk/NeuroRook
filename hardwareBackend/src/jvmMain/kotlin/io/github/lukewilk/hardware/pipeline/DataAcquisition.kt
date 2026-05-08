@@ -78,27 +78,31 @@ class DataAcquisition(
                     if (toGen > maxCap) toGen = maxCap
                     val synth = try { connectionManager.generateSyntheticData(toGen) } catch (_: Exception) { null }
                     if (synth != null) {
-                        var enabledChannels = stateProvider().enabledChannels
-                        if (enabledChannels.isEmpty()) enabledChannels = (0 until numChannels).toList()
-                        for (ch in enabledChannels) {
-                            if (ch < 0 || ch >= synth.size) continue
-                            channelBuffers[ch].addAll(synth[ch].asList())
-                            while (shouldDrainChannelBuffer(
-                                bufferedSamples = channelBuffers[ch].size,
-                                windowSize = windowSize,
-                                streaming = connectionManager.isStreaming(),
-                                isActive = coroutineContext.isActive
-                            )) {
-                                val window = channelBuffers[ch].take(windowSize).toDoubleArray()
-                                logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
-                                emit(
-                                    RawFrame(
-                                        timestampMs = timeProvider(),
-                                        channel = ch,
-                                        data = window
+                        val enabledChannels = stateProvider().enabledChannels
+                        if (enabledChannels.isEmpty()) {
+                            // No channels enabled: do not emit synthetic data. Sleep briefly to avoid busy-looping.
+                            delay(50)
+                        } else {
+                            for (ch in enabledChannels) {
+                                if (ch < 0 || ch >= synth.size) continue
+                                channelBuffers[ch].addAll(synth[ch].asList())
+                                while (shouldDrainChannelBuffer(
+                                    bufferedSamples = channelBuffers[ch].size,
+                                    windowSize = windowSize,
+                                    streaming = connectionManager.isStreaming(),
+                                    isActive = coroutineContext.isActive
+                                )) {
+                                    val window = channelBuffers[ch].take(windowSize).toDoubleArray()
+                                    logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
+                                    emit(
+                                        RawFrame(
+                                            timestampMs = timeProvider(),
+                                            channel = ch,
+                                            data = window
+                                        )
                                     )
-                                )
-                                repeat(windowSize - stateProvider().overlap) { channelBuffers[ch].removeFirstOrNull() }
+                                    repeat(windowSize - stateProvider().overlap) { channelBuffers[ch].removeFirstOrNull() }
+                                }
                             }
                         }
                     }
@@ -163,30 +167,32 @@ class DataAcquisition(
                         channelBuffers = Array(data.size) { ArrayDeque<Double>() }
                     }
 
-                    var enabledChannels = stateProvider().enabledChannels
+                    val enabledChannels = stateProvider().enabledChannels
                     if (enabledChannels.isEmpty()) {
-                        enabledChannels = (0 until data.size).toList()
-                    }
-
-                    for (ch in enabledChannels) {
-                        if (ch < 0 || ch >= data.size) continue
-                        channelBuffers[ch].addAll(data[ch].asList())
-                        while (shouldDrainChannelBuffer(
-                            bufferedSamples = channelBuffers[ch].size,
-                            windowSize = windowSize,
-                            streaming = connectionManager.isStreaming(),
-                            isActive = coroutineContext.isActive
-                        )) {
-                            val window = channelBuffers[ch].take(windowSize).toDoubleArray()
-                            logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
-                            emit(
-                                RawFrame(
-                                    timestampMs = timeProvider(),
-                                    channel = ch,
-                                    data = window
+                        // No channels enabled: do not emit frames from native data either.
+                        // Sleep briefly to avoid busy-looping in the streaming loop.
+                        delay(50)
+                    } else {
+                        for (ch in enabledChannels) {
+                            if (ch < 0 || ch >= data.size) continue
+                            channelBuffers[ch].addAll(data[ch].asList())
+                            while (shouldDrainChannelBuffer(
+                                bufferedSamples = channelBuffers[ch].size,
+                                windowSize = windowSize,
+                                streaming = connectionManager.isStreaming(),
+                                isActive = coroutineContext.isActive
+                            )) {
+                                val window = channelBuffers[ch].take(windowSize).toDoubleArray()
+                                logger.d { "Emitting RawFrame for channel $ch, size ${window.size}" }
+                                emit(
+                                    RawFrame(
+                                        timestampMs = timeProvider(),
+                                        channel = ch,
+                                        data = window
+                                    )
                                 )
-                            )
-                            repeat(windowSize - stateProvider().overlap) { channelBuffers[ch].removeFirstOrNull() }
+                                repeat(windowSize - stateProvider().overlap) { channelBuffers[ch].removeFirstOrNull() }
+                            }
                         }
                     }
                 }

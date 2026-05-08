@@ -248,11 +248,18 @@ internal fun resolveBaseDesktopColors(
 ): DesktopBaseColors {
     val background = kdeGlobals.color("Colors:Window", "BackgroundNormal") ?: uiColor("Panel.background") ?: fallbackBackground
     val onBackground = kdeGlobals.color("Colors:Window", "ForegroundNormal") ?: uiColor("Panel.foreground") ?: fallbackOnBackground
-    val surface = kdeGlobals.color("Colors:View", "BackgroundNormal") ?: uiColor("TextField.background") ?: background
+    // Prefer explicit TextField background from the desktop UI (less likely to be a full-window color)
+    // before falling back to view background. This reduces the chance of dialogs/dropdowns inheriting
+    // an extreme Panel/Window background color on certain desktop themes.
+    val surface = uiColor("TextField.background") ?: kdeGlobals.color("Colors:View", "BackgroundNormal") ?: background
     val onSurface = kdeGlobals.color("Colors:View", "ForegroundNormal") ?: uiColor("TextField.foreground") ?: onBackground
-    val surfaceVariant = kdeGlobals.color("Colors:View", "BackgroundAlternate")
+    // Prefer Button background (if provided) as a candidate for surfaceVariant because it is
+    // often designed to be a subtle container color; otherwise fall back to view alternate
+    // or the generic UI button background. This ordering helps dropdowns and chips choose
+    // a less jarring color on desktop themes.
+    val surfaceVariant = uiColor("Button.background")
+        ?: kdeGlobals.color("Colors:View", "BackgroundAlternate")
         ?: kdeGlobals.color("Colors:Button", "BackgroundNormal")
-        ?: uiColor("Button.background")
         ?: fallbackSurfaceVariant
     val onSurfaceVariant = kdeGlobals.color("Colors:Button", "ForegroundNormal")
         ?: kdeGlobals.color("Colors:Window", "ForegroundInactive")
@@ -521,22 +528,47 @@ internal fun tertiaryUiColorKeys(): List<String> = listOf(
 )
 
 /** Converts Swing `java.awt.Color` values into Compose [Color] using the same mapping as `desktopUiColor`. */
-internal fun awtColorToComposeColor(color: AwtColor): Color =
-    Color(color.red, color.green, color.blue, color.alpha)
+internal fun awtColorToComposeColor(color: AwtColor): Color {
+    // Convert 0..255 ARGB channels to normalized 0..1 floats and clamp to a safe range.
+    val r = (color.red / 255f)
+    val g = (color.green / 255f)
+    val b = (color.blue / 255f)
+    val a = (color.alpha / 255f)
+    return normalizeComposeColor(Color(red = r, green = g, blue = b, alpha = a))
+}
 
 /** Linear blend between two Compose colors; ratio is clamped to `[0, 1]` for stable tint math. */
 internal fun blendDesktopColors(first: Color, second: Color, ratio: Float): Color {
+    // Ensure ratio is limited to [0,1]
     val r = ratio.coerceIn(0f, 1f)
-    return Color(
-        red = first.red * (1f - r) + second.red * r,
-        green = first.green * (1f - r) + second.green * r,
-        blue = first.blue * (1f - r) + second.blue * r,
-        alpha = first.alpha * (1f - r) + second.alpha * r
-    )
+
+    // Perform blending in non-linear sRGB space as a pragmatic approach for UI tinting;
+    // clamp each channel to avoid out-of-range values or NaNs coming from upstream colors.
+    val red = (first.red * (1f - r) + second.red * r)
+    val green = (first.green * (1f - r) + second.green * r)
+    val blue = (first.blue * (1f - r) + second.blue * r)
+    val alpha = (first.alpha * (1f - r) + second.alpha * r)
+
+    return normalizeComposeColor(Color(red = red, green = green, blue = blue, alpha = alpha))
 }
 
 internal fun tintDesktopColors(base: Color, accent: Color, amount: Float): Color =
     blendDesktopColors(base, accent, amount)
+
+/** Clamp and sanitize Compose colors to ensure all channels are finite and within [0,1]. */
+private fun normalizeComposeColor(c: Color): Color {
+    fun safeClamp(v: Float): Float = when {
+        v.isFinite() -> v.coerceIn(0f, 1f)
+        else -> 0f
+    }
+
+    return Color(
+        red = safeClamp(c.red),
+        green = safeClamp(c.green),
+        blue = safeClamp(c.blue),
+        alpha = safeClamp(c.alpha)
+    )
+}
 
 private fun bestContrastOn(background: Color, preferred: Color, fallback: Color): Color {
     return pickBestContrastOnBackground(background, listOf(preferred, fallback))
