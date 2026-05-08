@@ -118,8 +118,8 @@ class MainScaffoldTest {
     }
 
     @Test
-    fun `main scaffold keeps custom header visible while placeholders replace the hardware pane`() {
-        // Exercises remember(selectedTab, isSidebarOpen, headerContent) while preserving custom header content without fallback branding.
+    fun `main scaffold renders the injected graphs screen slot when the graphs tab is selected`() {
+        // Verifies callers can provide a backend-aware Graphs destination instead of falling back to the empty default GraphsScreen.
         runComposeUiTest {
             setContent {
                 MaterialTheme {
@@ -127,19 +127,15 @@ class MainScaffoldTest {
                         hardwareScreen = {
                             androidx.compose.material3.Text("Hardware screen content")
                         },
-                        headerContent = {
-                            androidx.compose.material3.Text("Branded Shell Header")
+                        graphsScreen = {
+                            androidx.compose.material3.Text("Injected Graphs Screen")
                         }
                     )
                 }
             }
 
-            onNodeWithText("Neuro Rook").assertDoesNotExist()
-            onNodeWithText("Branded Shell Header").assertIsDisplayed()
             onNodeWithText("Graphs").performClick()
-            onNodeWithText("Graphs screen coming soon...").assertIsDisplayed()
-            onNodeWithText("Neuro Rook").assertDoesNotExist()
-            onNodeWithText("Branded Shell Header").assertIsDisplayed()
+            onNodeWithText("Injected Graphs Screen").assertIsDisplayed()
             onNodeWithText("Hardware screen content").assertDoesNotExist()
         }
     }

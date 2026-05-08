@@ -40,14 +40,14 @@ class BackendApiFunctionalTest {
             assertTrue(api.setSamplingRateHz(newRate))
             assertEquals(newRate, api.getState().samplingRateHz)
 
-            // 3. Add new synthetic waves
-            assertTrue(api.getState().waveSpecs.isEmpty(), "Should start with no default waves")
+            // 3. Add new synthetic waves on top of the temporary synthetic dev default.
+            assertTrue(api.getState().waveSpecs.isNotEmpty(), "Should start with the temporary default synthetic wave")
             val wave1 = WaveSpec(enabled = true, type = WaveType.SINE, amplitude = 1.0, frequencyHz = 10.0, phaseShiftRad = 0.0)
             val wave2 = WaveSpec(enabled = true, type = WaveType.SQUARE, amplitude = 2.0, frequencyHz = 5.0, phaseShiftRad = 0.0)
             assertTrue(api.addWave(wave1))
             assertTrue(api.addWave(wave2))
             val waves = api.getState().waveSpecs
-            assertTrue(waves.any { it.type == WaveType.SINE })
+            assertTrue(waves.count { it.type == WaveType.SINE } >= 1)
             assertTrue(waves.any { it.type == WaveType.SQUARE })
 
             // 4. Enable one channel

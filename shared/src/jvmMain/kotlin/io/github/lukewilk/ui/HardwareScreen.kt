@@ -32,6 +32,8 @@ import io.github.lukewilk.ui.elements.scroll.VerticalScrollCueBox
 import io.github.lukewilk.ui.hardware.DeviceSelectionCard
 import io.github.lukewilk.ui.hardware.SystemLogCard
 import io.github.lukewilk.ui.hardware.boardControlCard.BoardControlCard
+import io.github.lukewilk.ui.hardware.SyntheticConfigCard
+import io.github.lukewilk.shared.WaveSpec
 import kotlinx.coroutines.launch
 
 @Composable
@@ -168,6 +170,25 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
         runBackendAction { stopStreaming() }
     }
 
+    val onAddWave: (WaveSpec) -> Unit = { wave ->
+        runBackendAction { addWave(wave) }
+    }
+
+    val onRemoveWave: (Int) -> Unit = { idx ->
+        runBackendAction { removeWave(idx) }
+    }
+
+    val onToggleWaveEnabled: (Int, Boolean) -> Unit = { idx, enabled ->
+        // Create an edited WaveSpec based on current state and submit via editWave
+        val current = hardwareState.waveSpecs.getOrNull(idx)
+        val updated = current?.copy(enabled = enabled) ?: WaveSpec(enabled = enabled)
+        runBackendAction { editWave(idx, updated) }
+    }
+
+    val onEditWave: (Int, WaveSpec) -> Unit = { idx, wave ->
+        runBackendAction { editWave(idx, wave) }
+    }
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val scrollState = rememberScrollState()
         if (useCompactHardwareLayout(maxWidth)) {
@@ -211,6 +232,18 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
                             canSelectBoard = displayState.boardsReady,
                             canConnect = displayState.boardsReady
                         )
+                    }
+                    // Show synthetic configuration directly below device selection when a synthetic board is selected
+                    if (displayState.selectedBoardId.equals("SYNTHETIC_BOARD", ignoreCase = true)) {
+                        Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterMidPadding)) {
+                            SyntheticConfigCard(
+                                waveSpecs = hardwareState.waveSpecs,
+                                onAddWave = onAddWave,
+                                onRemoveWave = onRemoveWave,
+                                onToggleEnabled = onToggleWaveEnabled,
+                                onEditWave = onEditWave
+                            )
+                        }
                     }
                     Box(Modifier.padding(vertical = cardOuterMidPadding)) {
                         SystemLogCard(displayState.displayedLogs)
@@ -286,6 +319,18 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
                                     canConnect = displayState.boardsReady
                                 )
                             }
+                            // Show synthetic configuration directly below device selection when a synthetic board is selected
+                            if (displayState.selectedBoardId.equals("SYNTHETIC_BOARD", ignoreCase = true)) {
+                                Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterMidPadding)) {
+                                    SyntheticConfigCard(
+                                        waveSpecs = hardwareState.waveSpecs,
+                                        onAddWave = onAddWave,
+                                        onRemoveWave = onRemoveWave,
+                                        onToggleEnabled = onToggleWaveEnabled,
+                                        onEditWave = onEditWave
+                                    )
+                                }
+                            }
                             Box(Modifier.padding(top = cardOuterMidPadding, bottom = cardOuterBottomPadding)) {
                                 SystemLogCard(displayState.displayedLogs)
                             }
@@ -309,6 +354,7 @@ actual fun HardwareScreen(backendApi: BackendApi?) {
                                 onStopStreaming = stopStreaming
                             )
                         }
+                        // removed extra synthetic config column (kept configurator under DeviceSelectionCard)
                     }
                 }
             }
@@ -577,19 +623,6 @@ internal fun selectedSerialPortSuggestionIndex(
     ?: serialPortSuggestions.indexOfFirst { it.isRecommended }
         .takeIf { it >= 0 }
     ?: 0
-
-internal fun channelStatesFor(hardwareState: HardwareState): List<ChannelState> {
-    val channelCount = hardwareState.channels.takeIf { it > 0 } ?: 8
-    return List(channelCount) { index ->
-        ChannelState(
-            id = index,
-            name = "Channel ${index + 1}",
-            enabled = index in hardwareState.enabledChannels,
-            rld = index in hardwareState.rldEnabled,
-            status = if (index in hardwareState.verifiedChannels) "Configured" else "Not configured"
-        )
-    }
-}
 
 internal fun formatBoardLabelPart(part: String): String =
     part.lowercase().replaceFirstChar { char ->

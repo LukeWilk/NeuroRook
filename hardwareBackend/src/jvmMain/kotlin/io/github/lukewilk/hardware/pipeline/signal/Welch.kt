@@ -12,7 +12,8 @@ import kotlin.math.sqrt
 data class WelchConfig(
     val samplingRateHz: Double = 250.0,
     val windowType: WindowType = WindowType.HAMMING,
-    val padToNextPowerOfTwo: Boolean = true
+    val padToNextPowerOfTwo: Boolean = true,
+    val minimumNfft: Int = 1
 )
 
 /**
@@ -29,7 +30,7 @@ fun computeWelchPSD(windowedSignal: DoubleArray, config: WelchConfig): Array<Pai
 
     // Pad to next power of two if requested
     val nfft = if (config.padToNextPowerOfTwo) {
-        nextPowerOfTwo(windowedSignal.size)
+        nextPowerOfTwo(windowedSignal.size).coerceAtLeast(config.minimumNfft.coerceAtLeast(1))
     } else {
         windowedSignal.size
     }

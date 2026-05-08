@@ -3,6 +3,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 /**
  * PSD and band-power behavior tests for `Welch.kt`.
@@ -57,5 +58,20 @@ class WelchBehaviorTest {
         assertTrue(psd.size == 1)
         assertTrue(psd[0].first == 0.0)
         assertTrue(psd[0].second.isNaN() || psd[0].second >= 0.0)
+    }
+
+    /** Verifies the configurable padding floor can emit a denser one-sided spectrum for UI consumers. */
+    @Test
+    fun `compute welch psd honors the minimum nfft padding floor`() {
+        val psd = computeWelchPSD(
+            windowedSignal = DoubleArray(256) { index -> sin(2.0 * PI * 10.0 * index / 250.0) },
+            config = WelchConfig(
+                samplingRateHz = 250.0,
+                padToNextPowerOfTwo = true,
+                minimumNfft = 1024
+            )
+        )
+
+        assertEquals(513, psd.size)
     }
 }

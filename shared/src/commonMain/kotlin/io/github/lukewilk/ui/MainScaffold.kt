@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
 import io.github.lukewilk.ui.elements.navigation.MenuSidebar
+import io.github.lukewilk.ui.graphs.GraphsScreen
 
 internal enum class MainScaffoldDestination(
     val label: String,
@@ -89,6 +90,7 @@ internal fun mainScaffoldPlaceholderLabel(
 ): String? = when (val destination = mainScaffoldSelectedDestination(selectedTab, menuItems)) {
     null,
     MainScaffoldDestination.Hardware,
+    MainScaffoldDestination.Graphs,
     MainScaffoldDestination.About -> null
     else -> destination.label
 }
@@ -116,6 +118,7 @@ internal fun mainScaffoldNavigationItems(
 @Composable
 fun MainScaffold(
     hardwareScreen: @Composable () -> Unit,
+    graphsScreen: @Composable () -> Unit = { GraphsScreen() },
     headerContent: @Composable (() -> Unit)? = null
 ) {
     val menuItems = mainScaffoldMenuItems()
@@ -150,6 +153,7 @@ fun MainScaffold(
         ) {
             when (val selectedDestination = uiState.selectedDestination) {
                 null, MainScaffoldDestination.Hardware -> hardwareScreen()
+                MainScaffoldDestination.Graphs -> graphsScreen()
                 MainScaffoldDestination.About -> AboutScreen()
                 else -> PlaceholderScreen(selectedDestination.label)
             }

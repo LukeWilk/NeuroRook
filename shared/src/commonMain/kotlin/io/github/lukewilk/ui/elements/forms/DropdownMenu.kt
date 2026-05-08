@@ -36,19 +36,21 @@ fun DropdownMenu(
         onExpandedChange = { expanded = !expanded },
         modifier = modifier
     ) {
-        TextField(
+            TextField(
             value = selected,
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = TextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // use surfaceVariant for the textfield container in dropdowns to avoid picking up
+                    // unexpected system "Panel" background colors on desktop
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -66,7 +68,8 @@ fun DropdownMenu(
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            containerColor = MaterialTheme.colorScheme.surface,
+            // use surfaceVariant for popup container so dropdowns match dialogs and cards
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 4.dp,
             shadowElevation = 6.dp,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

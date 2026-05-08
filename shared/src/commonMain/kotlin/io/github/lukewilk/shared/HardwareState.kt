@@ -12,6 +12,9 @@ data class WaveSpec(
     val amplitude: Double = 1.0,
     val frequencyHz: Double = 1.0,
     val phaseShiftRad: Double = 0.0 // phase shift in radians
+    ,
+    val channels: List<Int> = emptyList(), // channel indices this wave emits to
+    val label: String = "" // optional human-readable name for the wave
 )
 
 enum class WaveType { SINE, SQUARE, SAWTOOTH, TRIANGLE, NOISE }
