@@ -9,6 +9,7 @@ on:
 jobs:
   kover:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -19,8 +20,15 @@ jobs:
         run: |
           echo "GHUSER=${{ secrets.GHUSER }}" >> local.properties
           echo "GHTOKEN=${{ secrets.GHTOKEN }}" >> local.properties
-      - name: Build and run tests with coverage
-        run: ./gradlew koverXmlReport koverHtmlReport
+      - name: Build and run tests with coverage (diagnostic + timeout)
+        run: |
+          timeout --signal=TERM 25m ./gradlew \
+            --no-daemon \
+            --console=plain \
+            --info \
+            --stacktrace \
+            koverXmlReport \
+            koverHtmlReport
         env:
           GHTOKEN: ${{ secrets.GHTOKEN }}
           GHUSER: ${{ secrets.GHUSER }}
