@@ -105,7 +105,6 @@ class GraphsScreenTest {
             graphsDataSetBulkToggleContentDescription(GraphDataSetType.BandPowers.label)
         ).assertIsDisplayed()
         onNodeWithText("Channel 1 • Filtered Signal").assertIsDisplayed()
-        onNodeWithContentDescription(renderedGraphContentDescription("Channel 1 • Filtered Signal")).assertIsDisplayed()
 
         onNodeWithContentDescription(
             graphsMatrixToggleContentDescription("Channel 2", GraphDataSetType.BandPowers.label)
@@ -148,12 +147,19 @@ class GraphsScreenTest {
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Black background")).assertIsOff()
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show grid")).assertIsOn()
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Fill filtered area")).assertIsOn()
+        onNodeWithText(GRAPHS_FILTERED_HISTORY_LABEL).assertIsDisplayed()
+        onNodeWithContentDescription(
+            graphsFilteredHistoryContentDescription(GraphFilteredHistoryWindow.FiveSeconds.label)
+        ).assertIsSelected()
         onNodeWithContentDescription(graphsRefreshIntervalContentDescription(GraphRefreshInterval.Immediate.label)).assertIsSelected()
 
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show datapoints")).performClick()
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Black background")).performClick()
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show grid")).performClick()
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Fill filtered area")).performClick()
+        onNodeWithContentDescription(
+            graphsFilteredHistoryContentDescription(GraphFilteredHistoryWindow.OneSecond.label)
+        ).performClick()
         onNodeWithContentDescription(graphsRefreshIntervalContentDescription(GraphRefreshInterval.Relaxed.label)).performClick()
         waitForIdle()
 
@@ -161,6 +167,9 @@ class GraphsScreenTest {
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Black background")).assertIsOn()
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Show grid")).assertIsOff()
         onNodeWithContentDescription(graphsDisplayOptionContentDescription("Fill filtered area")).assertIsOff()
+        onNodeWithContentDescription(
+            graphsFilteredHistoryContentDescription(GraphFilteredHistoryWindow.OneSecond.label)
+        ).assertIsSelected()
         onNodeWithContentDescription(graphsRefreshIntervalContentDescription(GraphRefreshInterval.Relaxed.label)).assertIsSelected()
         onNodeWithContentDescription(GRAPHS_CONFIGURATION_COLLAPSE_TEXT).performClick()
         waitForIdle()

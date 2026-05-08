@@ -240,7 +240,8 @@ class GraphsScreenStateTest {
                 useBlackBackground = true,
                 showGridLines = false,
                 fillFilteredArea = false,
-                refreshInterval = GraphRefreshInterval.Relaxed
+                refreshInterval = GraphRefreshInterval.Relaxed,
+                filteredHistoryWindow = GraphFilteredHistoryWindow.TwoSeconds
             ),
             receivedData = receivedData
         )
@@ -317,6 +318,7 @@ class GraphsScreenStateTest {
         assertEquals(false, uiState.graphViewOptions.showGridLines)
         assertEquals(false, uiState.graphViewOptions.fillFilteredArea)
         assertEquals(GraphRefreshInterval.Relaxed, uiState.graphViewOptions.refreshInterval)
+        assertEquals(GraphFilteredHistoryWindow.TwoSeconds, uiState.graphViewOptions.filteredHistoryWindow)
         assertEquals(displayState.graphCards, uiState.graphCards)
         assertEquals(displayState.emptyStateMessage, uiState.emptyStateMessage)
         assertEquals("Channel 1 • Filtered Signal", uiState.graphCards.first().title)
@@ -365,7 +367,10 @@ class GraphsScreenStateTest {
         assertEquals(GRAPHS_WAITING_FOR_DATA_MESSAGE, waitingForDataState.configurationEmptyMessage)
         assertEquals(GRAPHS_WAITING_FOR_GRAPHS_MESSAGE, waitingForDataState.emptyStateMessage)
         assertEquals(GraphRefreshInterval.Balanced, waitingForDataState.graphViewOptions.refreshInterval)
+        assertEquals(GraphFilteredHistoryWindow.FiveSeconds, waitingForDataState.graphViewOptions.filteredHistoryWindow)
         assertEquals("Immediate", GraphRefreshInterval.Immediate.label)
+        assertEquals(16, graphRefreshDelayMillis(GraphRefreshInterval.Immediate))
+        assertEquals(250, graphRefreshDelayMillis(GraphRefreshInterval.Balanced))
     }
 
     @Test

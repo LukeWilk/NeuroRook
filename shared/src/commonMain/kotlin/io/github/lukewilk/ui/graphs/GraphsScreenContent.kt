@@ -88,6 +88,9 @@ internal fun graphsDisplayOptionContentDescription(optionLabel: String): String 
 /** Accessible content description for one refresh-interval radio option in the side configuration panel. */
 internal fun graphsRefreshIntervalContentDescription(optionLabel: String): String = "$optionLabel graph refresh interval"
 
+/** Accessible content description for one filtered-history radio option in the side configuration panel. */
+internal fun graphsFilteredHistoryContentDescription(optionLabel: String): String = "$optionLabel filtered history"
+
 /** Renders the Graphs page body from already-derived UI state. */
 @Composable
 internal fun GraphsScreenContent(
@@ -332,6 +335,21 @@ private fun GraphOptionsPanel(
             )
             VerticalSpacer(2.dp)
             Text(
+                text = GRAPHS_FILTERED_HISTORY_LABEL,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            GraphFilteredHistoryWindow.entries.forEach { historyWindow ->
+                GraphFilteredHistoryRow(
+                    historyWindow = historyWindow,
+                    selected = graphViewOptions.filteredHistoryWindow == historyWindow,
+                    onSelected = {
+                        onGraphViewOptionsChange(graphViewOptions.copy(filteredHistoryWindow = historyWindow))
+                    }
+                )
+            }
+            VerticalSpacer(2.dp)
+            Text(
                 text = GRAPHS_REFRESH_INTERVAL_LABEL,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface
@@ -346,6 +364,39 @@ private fun GraphOptionsPanel(
                 )
             }
         }
+    }
+}
+
+/** Reusable radio row for one filtered-history duration option. */
+@Composable
+private fun GraphFilteredHistoryRow(
+    historyWindow: GraphFilteredHistoryWindow,
+    selected: Boolean,
+    onSelected: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = graphsFilteredHistoryContentDescription(historyWindow.label) }
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onSelected
+            )
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = historyWindow.label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
