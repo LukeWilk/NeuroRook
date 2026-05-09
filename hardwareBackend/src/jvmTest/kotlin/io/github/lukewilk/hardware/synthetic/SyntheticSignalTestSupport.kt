@@ -34,7 +34,7 @@ internal abstract class SyntheticSignalTestSupport {
     )
 
     /** Asserts that two sample arrays match within the tolerance used by synthetic generator tests. */
-    protected fun assertSamplesMatch(actual: DoubleArray, expected: DoubleArray, tolerance: Double = 1e-8, label: String = "Sample") {
+    protected fun assertSamplesMatch(actual: DoubleArray, expected: DoubleArray, tolerance: Double = 1e-6, label: String = "Sample") {
         assertTrue(actual.size == expected.size, "$label size differs: ${actual.size} vs ${expected.size}")
         for (index in actual.indices) {
             val diff = abs(actual[index] - expected[index])

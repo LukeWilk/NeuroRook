@@ -248,17 +248,10 @@ internal fun resolveBaseDesktopColors(
 ): DesktopBaseColors {
     val background = kdeGlobals.color("Colors:Window", "BackgroundNormal") ?: uiColor("Panel.background") ?: fallbackBackground
     val onBackground = kdeGlobals.color("Colors:Window", "ForegroundNormal") ?: uiColor("Panel.foreground") ?: fallbackOnBackground
-    // Prefer explicit TextField background from the desktop UI (less likely to be a full-window color)
-    // before falling back to view background. This reduces the chance of dialogs/dropdowns inheriting
-    // an extreme Panel/Window background color on certain desktop themes.
-    val surface = uiColor("TextField.background") ?: kdeGlobals.color("Colors:View", "BackgroundNormal") ?: background
+    val surface = kdeGlobals.color("Colors:View", "BackgroundNormal") ?: uiColor("TextField.background") ?: background
     val onSurface = kdeGlobals.color("Colors:View", "ForegroundNormal") ?: uiColor("TextField.foreground") ?: onBackground
-    // Prefer Button background (if provided) as a candidate for surfaceVariant because it is
-    // often designed to be a subtle container color; otherwise fall back to view alternate
-    // or the generic UI button background. This ordering helps dropdowns and chips choose
-    // a less jarring color on desktop themes.
-    val surfaceVariant = uiColor("Button.background")
-        ?: kdeGlobals.color("Colors:View", "BackgroundAlternate")
+    val surfaceVariant = kdeGlobals.color("Colors:View", "BackgroundAlternate")
+        ?: uiColor("Button.background")
         ?: kdeGlobals.color("Colors:Button", "BackgroundNormal")
         ?: fallbackSurfaceVariant
     val onSurfaceVariant = kdeGlobals.color("Colors:Button", "ForegroundNormal")

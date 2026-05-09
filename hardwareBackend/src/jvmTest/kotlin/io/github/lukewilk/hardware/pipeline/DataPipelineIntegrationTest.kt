@@ -120,6 +120,7 @@ class DataPipelineIntegrationTest {
 		assertTrue(callbackCoverageLatch.await(5, TimeUnit.SECONDS), "Expected channel-aware callbacks for every enabled channel")
 
 		manager.stopStream()
+		manager.awaitRegisteredStreamingJobForTests()
 		job.cancel()
 
 		assertEquals(expectedChannels, synchronized(callbackLock) { filteredChannels.toSet() })
@@ -187,6 +188,7 @@ class DataPipelineIntegrationTest {
 		assertTrue(bandPowersLatch.await(5, TimeUnit.SECONDS), "Expected alternating channel band-power callbacks")
 
 		manager.stopStream()
+		manager.awaitRegisteredStreamingJobForTests()
 		job.cancel()
 
 		assertEquals(4, alphaPowers.size)
@@ -259,6 +261,7 @@ class DataPipelineIntegrationTest {
 
 		// Stop streaming and cancel job
 		manager.stopStream()
+		manager.awaitRegisteredStreamingJobForTests()
 		job.cancel()
 
 		assertTrue(filteredOk, "onFiltered should be invoked")

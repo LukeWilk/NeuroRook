@@ -34,6 +34,8 @@ class BoardConnectionManagerStartStreamSyntheticTest {
         verify(mockShim, times(0)).start_stream(any(), any())
 
         manager.stopStream()
+        // Ensure any registered streaming coroutine is fully cleaned up before the test exits
+        manager.awaitRegisteredStreamingJobForTests()
     }
 }
 

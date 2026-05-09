@@ -82,26 +82,33 @@ class MainTest {
     fun testMainPipelineInvokesCallbacks() = runBlocking {
         val stateStore = StateStore(HardwareState(windowSize = 32, overlap = 16))
         val manager = BoardConnectionManager(stateStore)
-        manager.connect(boardId = brainflow.BoardIds.SYNTHETIC_BOARD, serialPort = "")
-        manager.enableChannel(0)
-        manager.startStream()
-        var filteredCalled = false
-        var bandPowersCalled = false
-        var fftResultCalled = false
-        val result = withTimeoutOrNull(1000) {
-            main(
-                _args = emptyArray(),
-                onFiltered = { filteredCalled = true },
-                onBandPowers = { bandPowersCalled = true },
-                onFFTResult = { fftResultCalled = true },
-                stateStore = stateStore,
-                manager = manager
-            )
+        try {
+            manager.connect(boardId = brainflow.BoardIds.SYNTHETIC_BOARD, serialPort = "")
+            manager.enableChannel(0)
+            manager.startStream()
+
+            var filteredCalled = false
+            var bandPowersCalled = false
+            var fftResultCalled = false
+            val result = withTimeoutOrNull(1000) {
+                main(
+                    _args = emptyArray(),
+                    onFiltered = { filteredCalled = true },
+                    onBandPowers = { bandPowersCalled = true },
+                    onFFTResult = { fftResultCalled = true },
+                    stateStore = stateStore,
+                    manager = manager
+                )
+            }
+
+            assertTrue(filteredCalled, "onFiltered callback should be invoked")
+            assertTrue(bandPowersCalled, "onBandPowers callback should be invoked")
+            assertTrue(fftResultCalled, "onFFTResult callback should be invoked")
+            assertTrue(result == null, "main should timeout and exit")
+        } finally {
+            runCatching { manager.stopStream() }
+            runCatching { manager.close() }
         }
-        assertTrue(filteredCalled, "onFiltered callback should be invoked")
-        assertTrue(bandPowersCalled, "onBandPowers callback should be invoked")
-        assertTrue(fftResultCalled, "onFFTResult callback should be invoked")
-        assertTrue(result == null, "main should timeout and exit")
     }
 
     @Test

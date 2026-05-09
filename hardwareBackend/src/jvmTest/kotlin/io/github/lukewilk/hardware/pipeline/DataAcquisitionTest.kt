@@ -83,7 +83,7 @@ class DataAcquisitionTest : DataAcquisitionTestSupport() {
                 synthetic = true,
                 samplingRateHz = 120,
                 channels = 2,
-                enabledChannels = emptyList(),
+                enabledChannels = (0 until 2).toList(),
                 windowSize = 4,
                 overlap = 2,
                 waveSpecs = listOf(WaveSpec(enabled = true, type = WaveType.SINE, amplitude = 1.0, frequencyHz = 8.0))
@@ -95,6 +95,7 @@ class DataAcquisitionTest : DataAcquisitionTestSupport() {
         localManager.startStream()
         val frames = withTimeout(5_000) { localAcquisition.streamRawFrames().take(4).toList() }
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.map { it.channel }.toSet().containsAll(setOf(0, 1)))
     }
@@ -120,6 +121,7 @@ class DataAcquisitionTest : DataAcquisitionTestSupport() {
         localManager.startStream()
         val frames = withTimeout(5_000) { localAcquisition.streamRawFrames().take(2).toList() }
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.isNotEmpty())
         assertTrue(frames.all { it.channel == 1 }, "Synthetic acquisition should skip invalid enabled channel indexes")
@@ -177,6 +179,7 @@ class DataAcquisitionTest : DataAcquisitionTestSupport() {
         val frames = mutableListOf<RawFrame>()
         localAcquisition.streamRawFrames().take(1).toList(frames)
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.size <= 1, "Should emit at most one frame before synthetic streaming error")
     }
@@ -247,6 +250,7 @@ class DataAcquisitionTest : DataAcquisitionTestSupport() {
         localManager.startStream()
         val frames = withTimeout(2_000) { localAcquisition.streamRawFrames().take(1).toList() }
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertEquals(200, requestedSamples, "Synthetic acquisition should cap bursts to samplingRate * 2 samples")
         assertEquals(1, frames.size)
@@ -286,6 +290,7 @@ class DataAcquisitionTest : DataAcquisitionTestSupport() {
 
         delay(75)
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
         collector.join()
 
         assertTrue(frames.isEmpty(), "No frames should be emitted when synthetic data generation fails for every iteration")

@@ -78,6 +78,30 @@ abstract class DataPipelineTestSupport {
         manager.startStream()
     }
 
+    /**
+     * Creates, connects, enables, and starts a synthetic `BoardConnectionManager`, yields it to the
+     * provided block, and guarantees stop/close in a finally block. Use this from tests that need
+     * a safely-scoped synthetic manager to avoid leaking streaming jobs across tests.
+     */
+    protected suspend fun <R> withSyntheticManager(
+        stateStore: StateStore<HardwareState> = pipelineStateStore(),
+        block: suspend (BoardConnectionManager) -> R
+    ): R {
+        val manager = BoardConnectionManager(stateStore)
+        try {
+            assertTrue(manager.connect(BoardIds.SYNTHETIC_BOARD, serialPort = ""))
+            manager.enableChannel(0)
+            manager.startStream()
+            return block(manager)
+        } finally {
+            // Ensure we always attempt graceful cleanup and avoid throwing from cleanup.
+            runCatching { manager.stopStream() }
+            // Wait for any registered streaming coroutine to finish to avoid leaking across tests.
+            runCatching { manager.awaitRegisteredStreamingJobForTests() }
+            runCatching { manager.close() }
+        }
+    }
+
     /** Polls until a condition becomes true, keeping callback-oriented tests deterministic. */
     protected suspend fun waitUntil(timeoutMs: Long = 3_000, pollMs: Long = 25, condition: () -> Boolean) {
         withTimeout(timeoutMs) {

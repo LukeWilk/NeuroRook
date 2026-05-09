@@ -410,6 +410,25 @@ open class BoardConnectionManager(
         }
     }
 
+    /**
+     * Test-only helper: wait for the currently registered streaming job to finish (if any).
+     * Tests may call this to deterministically wait for coroutine cleanup. The method is
+     * intentionally internal to avoid public API exposure.
+     */
+    internal open fun awaitRegisteredStreamingJobForTests(timeoutMs: Long = 2000L) {
+        val job = streamingJobRef.get()
+        if (job == null) return
+        kotlinx.coroutines.runBlocking {
+            val waited = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+                try {
+                    job.join()
+                    true
+                } catch (_: Exception) { false }
+            }
+            if (waited == true) logger.d { "awaitRegisteredStreamingJobForTests: job joined" } else logger.w { "awaitRegisteredStreamingJobForTests: job did not finish within timeout" }
+        }
+    }
+
     internal open fun isAnotherBoardCreatedError(error: Exception): Boolean {
         return error.message?.contains("ANOTHER_BOARD_IS_CREATED_ERROR") == true
     }

@@ -616,6 +616,11 @@ class IntegrationTest {
                             manager.stopStream()
                         } catch (_: Exception) {
                         }
+                        // Ensure any registered streaming coroutine is fully cleaned up before closing
+                        try {
+                            manager.awaitRegisteredStreamingJobForTests()
+                        } catch (_: Exception) {
+                        }
                     }
                     try {
                         manager.close()
