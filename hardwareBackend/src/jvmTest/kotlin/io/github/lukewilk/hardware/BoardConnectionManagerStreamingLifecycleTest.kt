@@ -65,6 +65,7 @@ class BoardConnectionManagerStreamingLifecycleTest : BoardConnectionManagerTestS
         manager.registerStreamingJob(job)
 
         manager.stopStream()
+        manager.awaitRegisteredStreamingJobForTests()
         delay(10)
 
         assertTrue(job.isCancelled)

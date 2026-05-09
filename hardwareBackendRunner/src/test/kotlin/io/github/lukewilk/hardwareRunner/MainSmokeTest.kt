@@ -663,8 +663,10 @@ class MainSmokeTest {
             }
 
             assertEquals(null, result)
-        } finally {
+            } finally {
             manager.stopStream()
+            // Ensure the synthetic streaming coroutine has cleaned up before closing in tests
+            runCatching { ensureAwaitRegisteredStreamingJobForTests(manager) }
             manager.close()
         }
     }
@@ -690,6 +692,7 @@ class MainSmokeTest {
             assertEquals(null, result)
         } finally {
             manager.stopStream()
+            runCatching { ensureAwaitRegisteredStreamingJobForTests(manager) }
             manager.close()
         }
     }
@@ -738,6 +741,7 @@ class MainSmokeTest {
             assertEquals(null, result)
         } finally {
             manager.stopStream()
+            runCatching { ensureAwaitRegisteredStreamingJobForTests(manager) }
             manager.close()
             RunnerRuntimeHooks.reset()
         }
@@ -750,6 +754,21 @@ class MainSmokeTest {
         manager.enableChannel(0)
         manager.startStream()
         return manager
+    }
+
+    // Reflection helper: some test modules cannot access internal test-only helpers defined
+    // in the `hardware` module. Try to invoke `awaitRegisteredStreamingJobForTests` reflectively
+    // and quietly ignore failures (best-effort cleanup).
+    private fun ensureAwaitRegisteredStreamingJobForTests(manager: BoardConnectionManager, timeoutMs: Long = 2000L) {
+        try {
+            val method = manager::class.java.getDeclaredMethod("awaitRegisteredStreamingJobForTests", java.lang.Long.TYPE)
+            method.isAccessible = true
+            method.invoke(manager, timeoutMs)
+        } catch (_: NoSuchMethodException) {
+            // Method not present (older code or different module); ignore
+        } catch (_: Throwable) {
+            // Ignore any reflection/invocation issues in test cleanup
+        }
     }
 }
 

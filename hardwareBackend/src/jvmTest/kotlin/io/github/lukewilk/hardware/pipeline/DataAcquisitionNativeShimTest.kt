@@ -61,6 +61,8 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
         val frames = mutableListOf<RawFrame>()
         localAcquisition.streamRawFrames().take(3).toList(frames)
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.isNotEmpty())
         assertTrue(frames.all { it.data.size == 4 })
@@ -105,6 +107,7 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
         val frames = mutableListOf<RawFrame>()
         localAcquisition.streamRawFrames().take(4).toList(frames)
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.isNotEmpty(), "Native acquisition should keep emitting even when the returned channel count changes")
     }
@@ -130,6 +133,7 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
         job.cancel()
         job.join()
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.isEmpty(), "Should emit no frames when BoardShim returns empty data")
     }
@@ -155,6 +159,7 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
         job.cancel()
         job.join()
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.isEmpty(), "Should emit no frames when BoardShim returns an empty outer array")
     }
@@ -195,7 +200,7 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
                 )
             }
         }
-        val localStateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 3, enabledChannels = emptyList()))
+        val localStateStore = StateStore(HardwareState(connected = true, windowSize = 4, overlap = 2, channels = 3, enabledChannels = listOf(0,1,2)))
         val localManager = io.github.lukewilk.hardware.BoardConnectionManager(localStateStore)
         val localAcquisition = DataAcquisition(
             localManager,
@@ -233,6 +238,9 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
         localManager.startStream()
         val frames = localAcquisition.streamRawFrames().take(1).toList()
 
+        // Ensure any streaming job cancelled from within the fetch loop has finished cleaning up.
+        localManager.awaitRegisteredStreamingJobForTests()
+
         assertTrue(frames.isEmpty(), "Native acquisition should skip buffered window emission once streaming has already been stopped")
     }
 
@@ -260,6 +268,7 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
         val frames = mutableListOf<RawFrame>()
         localAcquisition.streamRawFrames().take(1).toList(frames)
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
 
         assertTrue(frames.size <= 1, "Should emit at most one frame before streaming loop error")
     }
@@ -298,6 +307,7 @@ class DataAcquisitionNativeShimTest : DataAcquisitionTestSupport() {
         job.join()
 
         localManager.stopStream()
+        localManager.awaitRegisteredStreamingJobForTests()
         localManager.close()
 
         assertTrue(frames.isEmpty(), "No frames should be emitted when fetch is cancelled")

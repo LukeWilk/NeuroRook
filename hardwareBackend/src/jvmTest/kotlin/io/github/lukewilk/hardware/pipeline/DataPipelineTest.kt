@@ -17,41 +17,40 @@ class DataPipelineTest : DataPipelineTestSupport() {
     @Test
     fun `start data pipeline processes filters and invokes callbacks`() = runBlocking {
         val stateStore = filteredPipelineStateStore()
-        val manager = io.github.lukewilk.hardware.BoardConnectionManager(stateStore)
-        connectAndStartSynthetic(manager)
+        withSyntheticManager(stateStore) { manager ->
+            var filteredCalled = false
+            var bandPowersCalled = false
+            var fftCalled = false
 
-        var filteredCalled = false
-        var bandPowersCalled = false
-        var fftCalled = false
+            val pipelineJob = launch {
+                startDataPipeline(
+                    onFiltered = {
+                        filteredCalled = true
+                        // Flip sampling to the fallback path after the first callback so the run covers both rates.
+                        stateStore.update { st -> st.copy(samplingRateHz = 0) }
+                    },
+                    onBandPowers = {
+                        if (it.isNotEmpty()) bandPowersCalled = true
+                    },
+                    onFFTResult = {
+                        if (it.isNotEmpty()) fftCalled = true
+                    },
+                    stateStore = stateStore,
+                    manager = manager
+                )
+            }
 
-        val pipelineJob = launch {
-            startDataPipeline(
-                onFiltered = {
-                    filteredCalled = true
-                    // Flip sampling to the fallback path after the first callback so the run covers both rates.
-                    stateStore.update { st -> st.copy(samplingRateHz = 0) }
-                },
-                onBandPowers = {
-                    if (it.isNotEmpty()) bandPowersCalled = true
-                },
-                onFFTResult = {
-                    if (it.isNotEmpty()) fftCalled = true
-                },
-                stateStore = stateStore,
-                manager = manager
-            )
+            waitUntil { filteredCalled && bandPowersCalled && fftCalled }
+
+            manager.stopStream()
+            manager.awaitRegisteredStreamingJobForTests()
+            waitUntil(timeoutMs = 3_000) { pipelineJob.isCompleted }
+
+            assertTrue(filteredCalled)
+            assertTrue(bandPowersCalled)
+            assertTrue(fftCalled)
+            assertTrue(pipelineJob.isCompleted)
         }
-
-        waitUntil { filteredCalled && bandPowersCalled && fftCalled }
-
-        manager.stopStream()
-        waitUntil(timeoutMs = 3_000) { pipelineJob.isCompleted }
-
-        assertTrue(filteredCalled)
-        assertTrue(bandPowersCalled)
-        assertTrue(fftCalled)
-        assertTrue(pipelineJob.isCompleted)
-        manager.close()
     }
 
     /** Verifies the pipeline can run successfully when all callbacks are omitted. */
@@ -70,6 +69,7 @@ class DataPipelineTest : DataPipelineTestSupport() {
 
         kotlinx.coroutines.delay(200)
         manager.stopStream()
+        manager.awaitRegisteredStreamingJobForTests()
         waitUntil(timeoutMs = 3_000) { pipelineJob.isCompleted }
 
         assertTrue(pipelineJob.isCompleted)
@@ -101,6 +101,7 @@ class DataPipelineTest : DataPipelineTestSupport() {
         waitUntil { filteredLength == 32 && bandPowerSize >= 0 }
 
         manager.stopStream()
+        manager.awaitRegisteredStreamingJobForTests()
         waitUntil(timeoutMs = 3_000) { pipelineJob.isCompleted }
 
         assertEquals(32, filteredLength)
@@ -129,6 +130,7 @@ class DataPipelineTest : DataPipelineTestSupport() {
         waitUntil { filteredCalled }
 
         manager.stopStream()
+        manager.awaitRegisteredStreamingJobForTests()
         waitUntil(timeoutMs = 3_000) { pipelineJob.isCompleted }
 
         assertTrue(filteredCalled)
@@ -154,6 +156,7 @@ class DataPipelineTest : DataPipelineTestSupport() {
         waitUntil { bandPowersCalled }
 
         manager.stopStream()
+        manager.awaitRegisteredStreamingJobForTests()
         waitUntil(timeoutMs = 3_000) { pipelineJob.isCompleted }
 
         assertTrue(bandPowersCalled)
