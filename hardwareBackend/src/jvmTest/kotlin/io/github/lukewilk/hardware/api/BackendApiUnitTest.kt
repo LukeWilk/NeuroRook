@@ -163,7 +163,7 @@ class BackendApiUnitTest : BackendApiTestSupport() {
     }
     /** Verifies the BrainFlow board list excludes the sentinel `NO_BOARD` entry and records the load event. */
     @Test
-    fun `get brainflow boards excludes no board`() {
+    fun `get brainflow boards excludes no board`() = runBlocking {
         val boards = api.getBrainflowBoards()
         assertTrue(boards.isNotEmpty(), "Expected at least one board entry")
         assertFalse(boards.contains("NO_BOARD"), "Expected NO_BOARD to be hidden from the UI list")
@@ -226,7 +226,7 @@ class BackendApiUnitTest : BackendApiTestSupport() {
     }
     /** Verifies the rolling system log keeps only the configured number of recent entries. */
     @Test
-    fun `system log flow trims to the configured maximum`() {
+    fun `system log flow trims to the configured maximum`() = runBlocking {
         repeat(205) {
             api.getBrainflowBoards()
         }

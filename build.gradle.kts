@@ -9,15 +9,7 @@ plugins {
     id("org.jetbrains.kotlinx.kover") version "0.9.8"
 }
 
-kover {
-    currentProject {
-        createVariant("coverage") {
-            add("jvm", optional = true)
-            add("desktop", optional = true)
-            add("debug", optional = true)
-        }
-    }
-}
+apply(from = rootProject.file("gradle/kover-coverage-variant.gradle.kts"))
 
 tasks.register("coverageHtmlReport") {
     group = "verification"

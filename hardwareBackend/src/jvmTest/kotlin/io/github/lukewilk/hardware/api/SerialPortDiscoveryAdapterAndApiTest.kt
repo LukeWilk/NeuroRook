@@ -2,6 +2,7 @@ package io.github.lukewilk.hardware.api
 
 import com.fazecast.jSerialComm.SerialPort
 import io.github.lukewilk.shared.model.SerialPortSuggestion
+import kotlinx.coroutines.runBlocking
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.junit.Test
@@ -104,7 +105,7 @@ internal class SerialPortDiscoveryAdapterAndApiTest : SerialPortDiscoveryTestSup
 
     /** Verifies the backend API exposes discovery results unchanged and forwards the selected board id. */
     @Test
-    fun `hardware backend api delegates serial port suggestions to discovery`() {
+    fun `hardware backend api delegates serial port suggestions to discovery`() = runBlocking {
         val expectedSuggestions = listOf(
             SerialPortSuggestion(
                 path = "/dev/ttyACM0",

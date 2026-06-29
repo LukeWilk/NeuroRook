@@ -85,9 +85,10 @@ class BackendApiJvmDefaultArgumentsTest {
             "getSerialPortSuggestions\$default",
             BackendApi::class.java,
             String::class.java,
+            Continuation::class.java,
             Int::class.javaPrimitiveType,
             Any::class.java
-        ).invoke(null, recordingApi, "ignored", 0b1, null) as List<SerialPortSuggestion>
+        ).invoke(null, recordingApi, "ignored", continuation, 0b1, null) as List<SerialPortSuggestion>
         assertEquals(emptyList(), suggestionsResult)
 
         assertEquals(Triple("SYNTHETIC_BOARD", "", 0), recordingApi.connectArgs.single())
@@ -130,9 +131,9 @@ private class RecordingJvmBackendApi : BackendApi {
     override suspend fun verifyChannels(): Boolean = true
     override suspend fun setSamplingRateHz(rate: Int): Boolean = true
     override fun getState(): HardwareState = HardwareState()
-    override fun getBrainflowBoards(): List<String> = emptyList()
+    override suspend fun getBrainflowBoards(): List<String> = emptyList()
 
-    override fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
+    override suspend fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
         serialPortSuggestionArgs += boardId
         return emptyList()
     }

@@ -68,8 +68,8 @@ private class RecordingBackendApi : BackendApi {
 	override suspend fun verifyChannels(): Boolean = true
 	override suspend fun setSamplingRateHz(rate: Int): Boolean = true
 	override fun getState(): HardwareState = HardwareState()
-	override fun getBrainflowBoards(): List<String> = emptyList()
-	override fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
+	override suspend fun getBrainflowBoards(): List<String> = emptyList()
+	override suspend fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
 		serialPortSuggestionArgs += boardId
 		return emptyList()
 	}
