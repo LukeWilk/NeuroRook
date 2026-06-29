@@ -31,8 +31,8 @@ interface BackendApi {
     suspend fun verifyChannels(): Boolean
     suspend fun setSamplingRateHz(rate: Int): Boolean
     fun getState(): HardwareState
-    fun getBrainflowBoards(): List<String>
-    fun getSerialPortSuggestions(boardId: String? = null): List<SerialPortSuggestion>
+    suspend fun getBrainflowBoards(): List<String>
+    suspend fun getSerialPortSuggestions(boardId: String? = null): List<SerialPortSuggestion>
     val hardwareStateFlow: StateFlow<HardwareState>
     val systemLogFlow: StateFlow<List<SystemLogEntry>>
 

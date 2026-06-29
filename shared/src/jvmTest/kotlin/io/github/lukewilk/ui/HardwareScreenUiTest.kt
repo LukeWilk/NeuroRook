@@ -732,11 +732,11 @@ private class RecordingBackendApi(
     }
     override suspend fun setSamplingRateHz(rate: Int): Boolean = true
     override fun getState(): HardwareState = hardwareStateFlow.value
-    override fun getBrainflowBoards(): List<String> {
+    override suspend fun getBrainflowBoards(): List<String> {
         boardLoadFailure?.let { throw it }
         return boards
     }
-    override fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
+    override suspend fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
         serialSuggestionRequests += 1
         serialFailure?.let { throw it }
         return serialSuggestions

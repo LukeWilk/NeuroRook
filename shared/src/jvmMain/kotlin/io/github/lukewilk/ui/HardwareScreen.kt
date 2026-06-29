@@ -478,7 +478,7 @@ internal suspend fun BackendApi.setRldEnabled(channelId: Int, enabled: Boolean) 
     if (enabled) enableRLD(channelId) else disableRLD(channelId)
 }
 
-internal fun loadBoardState(backendApi: BackendApi?): BoardLoadState {
+internal suspend fun loadBoardState(backendApi: BackendApi?): BoardLoadState {
     if (backendApi == null) {
         return unresolvedBoards("Hardware backend is unavailable on this platform.")
     }
@@ -506,7 +506,7 @@ internal fun unresolvedBoards(errorMessage: String): BoardLoadState = BoardLoadS
     errorMessage = errorMessage
 )
 
-internal fun loadSerialPortUiState(
+internal suspend fun loadSerialPortUiState(
     backendApi: BackendApi?,
     selectedBoardId: String?,
     serialPort: String,

@@ -89,8 +89,8 @@ private class FakeAppGraphsBackendApi(
     override suspend fun verifyChannels(): Boolean = true
     override suspend fun setSamplingRateHz(rate: Int): Boolean = true
     override fun getState(): HardwareState = hardwareStateMutable.value
-    override fun getBrainflowBoards(): List<String> = emptyList()
-    override fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> = emptyList()
+    override suspend fun getBrainflowBoards(): List<String> = emptyList()
+    override suspend fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> = emptyList()
     override val hardwareStateFlow: StateFlow<HardwareState> = hardwareStateMutable
     override val systemLogFlow: StateFlow<List<SystemLogEntry>> = MutableStateFlow(emptyList())
     override val filteredFlow: Flow<ChannelData<DoubleArray>> = filteredFlowMutable

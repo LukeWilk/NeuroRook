@@ -26,7 +26,9 @@ open class BoardConnectionManager(
         { boardId -> BoardShim.get_sampling_rate(boardId) }
 ) {
     private val logger = LoggerProvider.getLogger("BoardConnectionManager")
+    private val boardShimLock = Any()
 
+    @Volatile
     private var boardShim: BoardShim? = null
     val state = stateStore.state
     private val streamingActive = AtomicBoolean(false)
@@ -34,7 +36,7 @@ open class BoardConnectionManager(
 
     fun isStreaming(): Boolean = streamingActive.get()
 
-    fun getBoardShim(): BoardShim? = boardShim
+    fun getBoardShim(): BoardShim? = synchronized(boardShimLock) { boardShim }
 
     // Allow caller to hint that this is synthetic (useful during connect while state not updated yet)
     fun getNumberOfChannels(boardId: BoardIds, syntheticHint: Boolean = false): Int {
@@ -174,7 +176,6 @@ open class BoardConnectionManager(
             } else {
                 boardShimFactory(boardId, params)
             }
-            boardShim = createdShim
             // For synthetic board, avoid calling native prepare_session which can conflict with other tests
             if (!isSyntheticBoard) {
                 try {
@@ -183,13 +184,19 @@ open class BoardConnectionManager(
                     // If another board is already created in this JVM, try to release and retry once
                     val shouldRetryPrepareSession = isAnotherBoardCreatedError(e)
                     if (!shouldRetryPrepareSession) {
+                        releaseShimQuietly(createdShim, "prepare_session failure cleanup")
                         throw e
                     }
+                    releaseShimQuietly(createdShim, "retryable prepare_session failure cleanup")
                     retryPrepareSession(boardId, params)
                 }
             } else {
                 // synthetic board: no native session required
                 logger.i { "Synthetic board selected; skipping native prepare_session." }
+                setBoardShim(createdShim)
+            }
+            if (!isSyntheticBoard && getBoardShim() == null) {
+                setBoardShim(createdShim)
             }
             // Streaming is now started separately
             val detectedSamplingRate = try { samplingRateProvider(boardId) } catch (_: Exception) { 250 }
@@ -221,6 +228,7 @@ open class BoardConnectionManager(
             return true
         } catch (e: Exception) {
             logger.e(e) { "BrainFlow connection error on $serialPort: ${e.message}" }
+            clearBoardShim()
             stateStore.update { it.copy(
                 connected = false,
                 streaming = false,
@@ -246,7 +254,7 @@ open class BoardConnectionManager(
             }
             // For real boards, attempt to start native stream first, then mark streaming active on success
             try {
-                val shim = boardShim ?: throw IllegalStateException("Cannot start a real-board stream without an active BoardShim session")
+                val shim = getBoardShim() ?: throw IllegalStateException("Cannot start a real-board stream without an active BoardShim session")
                 shim.start_stream(bufferSize, streamerParams)
                 streamingActive.set(true)
                 stateStore.update { it.copy(streaming = true) }
@@ -276,10 +284,11 @@ open class BoardConnectionManager(
                 logger.i { "Synthetic board: simulated stopStream (no native call)" }
                 return
             }
+            val shim = getBoardShim()
             // Try to stop native stream on a background thread but wait briefly for it to finish
             val t = Thread {
                 try {
-                    boardShim?.stop_stream()
+                    shim?.stop_stream()
                     logger.i { "Stopped stream (native)" }
                 } catch (e: Exception) {
                     logger.e(e) { "Failed to stop native stream: ${e.message}" }
@@ -306,8 +315,9 @@ open class BoardConnectionManager(
     fun close() {
         try {
             stopStream() // Ensure stream is stopped before releasing session
+            val shim = getBoardShim()
             if (!stateStore.get().synthetic) {
-                try { boardShim?.release_session() } catch (_: Exception) {}
+                releaseShimQuietly(shim, "close")
             } else {
                 logger.i { "Synthetic board: skipping release_session" }
             }
@@ -324,7 +334,7 @@ open class BoardConnectionManager(
                 verifiedChannels = emptyList()
             )
         }
-        boardShim = null
+        clearBoardShim()
     }
 
     open fun generateSyntheticData(samples: Int): Array<DoubleArray> {
@@ -435,14 +445,28 @@ open class BoardConnectionManager(
 
     internal open fun retryPrepareSession(boardId: BoardIds, params: BrainFlowInputParams) {
         logger.w { "prepare_session failed with ANOTHER_BOARD_IS_CREATED_ERROR, attempting release and retry" }
-        try {
-            boardShim?.release_session()
-        } catch (re: Exception) {
-            logger.w(re) { "release_session during retry failed: ${re.message}" }
-        }
+        releaseShimQuietly(getBoardShim(), "retry existing shim release")
         // retry once
         val replacementShim = boardShimFactory(boardId, params)
-        boardShim = replacementShim
         replacementShim.prepare_session()
+        setBoardShim(replacementShim)
+    }
+
+    private fun setBoardShim(shim: BoardShim?) {
+        synchronized(boardShimLock) {
+            boardShim = shim
+        }
+    }
+
+    private fun clearBoardShim() {
+        setBoardShim(null)
+    }
+
+    private fun releaseShimQuietly(shim: BoardShim?, context: String) {
+        try {
+            shim?.release_session()
+        } catch (re: Exception) {
+            logger.w(re) { "release_session during $context failed: ${re.message}" }
+        }
     }
 }

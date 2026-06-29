@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * JVM backend implementation that bridges board control with the shared `BackendApi` contract.
@@ -264,18 +265,19 @@ class HardwareBackendApi(
         onFFTResult = listener
     }
 
-    override fun getBrainflowBoards(): List<String> {
+    override suspend fun getBrainflowBoards(): List<String> = withContext(Dispatchers.Default) {
         // Return all board names from BrainFlow's BoardIds enum, except NO_BOARD
         val boards = BoardIds.entries
             .filterNot { it == BoardIds.NO_BOARD }
             .map { it.name }
         appendInfo("Loaded ${boards.size} available boards from BrainFlow.")
-        return boards
+        boards
     }
 
-    override fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> {
-        return serialPortDiscovery.getSuggestions(boardId)
-    }
+    override suspend fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> =
+        withContext(Dispatchers.IO) {
+            serialPortDiscovery.getSuggestions(boardId)
+        }
 
     private fun appendInfo(message: String) = appendLog(SystemLogSeverity.INFO, message)
 

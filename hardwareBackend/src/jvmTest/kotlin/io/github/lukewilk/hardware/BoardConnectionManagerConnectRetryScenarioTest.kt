@@ -8,6 +8,7 @@ import io.github.lukewilk.shared.StateStore
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 /**
  * Connect-time retry scenario tests for `BoardConnectionManager`.
@@ -77,6 +78,7 @@ class BoardConnectionManagerConnectRetryScenarioTest : BoardConnectionManagerTes
         assertFalse(failingManager.state.value.connected)
         assertTrue(failingManager.state.value.enabledChannels.isEmpty())
         assertTrue(failingManager.state.value.rldEnabled.isEmpty())
+        assertNull(failingManager.getBoardShim(), "Failed connect should not leave a stale board shim published")
     }
     /** Verifies connect triggers retryPrepareSession when the retry predicate explicitly opts in. */
     @Test

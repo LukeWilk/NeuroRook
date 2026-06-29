@@ -43,7 +43,7 @@ class HardwareScreenStateTest {
     }
 
     @Test
-    fun `load board state handles missing backend filtered boards and backend failures`() {
+    fun `load board state handles missing backend filtered boards and backend failures`() = runBlocking {
         val successApi = FakeBackendApi(boards = listOf("NO_BOARD", "CYTON_BOARD", "SYNTHETIC_BOARD"))
         val failureApi = FakeBackendApi(boardFailure = IllegalStateException("Board service down"))
 
@@ -60,7 +60,7 @@ class HardwareScreenStateTest {
     }
 
     @Test
-    fun `load board state falls back to an unknown error when the backend exception has no message`() {
+    fun `load board state falls back to an unknown error when the backend exception has no message`() = runBlocking {
         val failureApi = FakeBackendApi(boardFailure = IllegalStateException())
         assertEquals("Unknown error", loadBoardState(failureApi).errorMessage)
     }
@@ -209,7 +209,7 @@ class HardwareScreenStateTest {
     }
 
     @Test
-    fun `load serial port state handles unavailable blank synthetic success manual and failure branches`() {
+    fun `load serial port state handles unavailable blank synthetic success manual and failure branches`() = runBlocking {
         val suggestions = listOf(
             SerialPortSuggestion(path = "/dev/ttyUSB0", displayName = "USB", isUsbDevice = true),
             SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Recommended", isRecommended = true)
@@ -265,7 +265,7 @@ class HardwareScreenStateTest {
     }
 
     @Test
-    fun `load serial port state preserves manual custom paths and falls back to unknown errors`() {
+    fun `load serial port state preserves manual custom paths and falls back to unknown errors`() = runBlocking {
         val emptySuggestionsApi = FakeBackendApi(serialSuggestions = emptyList())
         val blankFailureApi = FakeBackendApi(serialFailure = IllegalStateException())
 
@@ -310,7 +310,7 @@ class HardwareScreenStateTest {
     }
 
     @Test
-    fun `load serial port state retains last auto selection when suggestions empty and user keeps manual port`() {
+    fun `load serial port state retains last auto selection when suggestions empty and user keeps manual port`() = runBlocking {
         val emptySuggestionsApi = FakeBackendApi(serialSuggestions = emptyList())
         val state = loadSerialPortUiState(
             backendApi = emptySuggestionsApi,
@@ -326,7 +326,7 @@ class HardwareScreenStateTest {
     }
 
     @Test
-    fun `load serial port state clears last auto marker when auto select yields blank default path`() {
+    fun `load serial port state clears last auto marker when auto select yields blank default path`() = runBlocking {
         val emptyPathSuggestions = listOf(SerialPortSuggestion(path = "", displayName = "Placeholder port"))
         val api = FakeBackendApi(serialSuggestions = emptyPathSuggestions)
         val state = loadSerialPortUiState(
@@ -342,7 +342,7 @@ class HardwareScreenStateTest {
     }
 
     @Test
-    fun `load serial port state records suggested default path as last auto marker when manual selection blocks auto apply`() {
+    fun `load serial port state records suggested default path as last auto marker when manual selection blocks auto apply`() = runBlocking {
         val suggestions = listOf(SerialPortSuggestion(path = "/dev/ttyACM0", displayName = "Adapter", isRecommended = true))
         val api = FakeBackendApi(serialSuggestions = suggestions)
         val state = loadSerialPortUiState(
@@ -707,8 +707,8 @@ private class FakeBackendApi(
     override suspend fun verifyChannels(): Boolean = true
     override suspend fun setSamplingRateHz(rate: Int): Boolean = true
     override fun getState(): HardwareState = HardwareState()
-    override fun getBrainflowBoards(): List<String> = boardFailure?.let { throw it } ?: boards
-    override fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> = serialFailure?.let { throw it } ?: serialSuggestions
+    override suspend fun getBrainflowBoards(): List<String> = boardFailure?.let { throw it } ?: boards
+    override suspend fun getSerialPortSuggestions(boardId: String?): List<SerialPortSuggestion> = serialFailure?.let { throw it } ?: serialSuggestions
     override val hardwareStateFlow: StateFlow<HardwareState> = MutableStateFlow(HardwareState())
     override val systemLogFlow: StateFlow<List<SystemLogEntry>> = MutableStateFlow(emptyList())
     override val filteredFlow: Flow<ChannelData<DoubleArray>> = emptyFlow()
