@@ -3,10 +3,10 @@ plugins {
     // in each subproject's classloader
     alias(libs.plugins.androidApplication) apply false
     alias(libs.plugins.androidLibrary) apply false
-    id("org.jetbrains.compose") version "1.9.3" apply false
+    alias(libs.plugins.composeMultiplatform) apply false
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
-    id("org.jetbrains.kotlinx.kover") version "0.9.8"
+    alias(libs.plugins.kover)
 }
 
 apply(from = rootProject.file("gradle/kover-coverage-variant.gradle.kts"))
