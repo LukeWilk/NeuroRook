@@ -1,17 +1,17 @@
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
-    id("org.jetbrains.kotlinx.kover")
+    alias(libs.plugins.kover)
 }
 
 apply(from = rootProject.file("gradle/kover-coverage-variant.gradle.kts"))
 
 android {
     namespace = "io.github.lukewilk"
-    compileSdk = 36
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        minSdk = 26
+        minSdk = libs.versions.android.minSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Centralized versioning from root gradle.properties
         versionCode = (findProperty("versionCode") as String).toInt()

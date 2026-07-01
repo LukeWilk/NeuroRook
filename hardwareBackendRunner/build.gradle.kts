@@ -1,7 +1,7 @@
 plugins {
     id("application")
     kotlin("jvm")
-    id("org.jetbrains.kotlinx.kover")
+    alias(libs.plugins.kover)
 }
 
 apply(from = rootProject.file("gradle/kover-coverage-variant.gradle.kts"))

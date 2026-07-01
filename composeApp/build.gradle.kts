@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     id("com.android.kotlin.multiplatform.library")
-    id("org.jetbrains.kotlinx.kover")
+    alias(libs.plugins.kover)
 }
 
 apply(from = rootProject.file("gradle/kover-coverage-variant.gradle.kts"))
@@ -11,8 +11,8 @@ apply(from = rootProject.file("gradle/kover-coverage-variant.gradle.kts"))
 kotlin {
     android {
         namespace = "io.github.lukewilk.composeapp"
-        compileSdk = 36
-        minSdk = 26
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
     }
     jvm("desktop")
 

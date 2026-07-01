@@ -14,6 +14,30 @@ import io.github.lukewilk.shared.logging.LoggerProvider
 object BoardDescrUtils {
     private val logger = LoggerProvider.getLogger("BoardDescrUtils")
 
+    private fun syntheticBoardDescr(): Map<String, Any?> {
+        val eegNames = "Fz,C3,Cz,C4,Pz,PO7,Oz,PO8,F5,F7,F3,F1,F2,F4,F6,F8"
+        return mapOf<String, Any?>(
+            "name" to "Synthetic",
+            "num_rows" to 32,
+            "sampling_rate" to 250,
+            "timestamp_channel" to 30,
+            "eeg_channels" to (1..16).toList(),
+            "eeg_names" to eegNames,
+            "gyro_channels" to (20..22).toList(),
+            "accel_channels" to (17..19).toList(),
+            "ecg_channels" to (1..16).toList(),
+            "emg_channels" to (1..16).toList(),
+            "eog_channels" to (1..16).toList(),
+            "ppg_channels" to listOf(24, 25),
+            "eda_channels" to listOf(23),
+            "resistance_channels" to listOf(27, 28),
+            "battery_channel" to 29,
+            "temperature_channels" to listOf(26),
+            "package_num_channel" to 0,
+            "marker_channel" to 31
+        )
+    }
+
     /**
      * Try to obtain the BrainFlow board descriptor for the given [boardShim].
      *
@@ -40,29 +64,10 @@ object BoardDescrUtils {
             BoardShim.get_board_descr(Map::class.java as Class<Map<String, Any?>>, BoardIds.SYNTHETIC_BOARD) as Map<String, Any?>
         } catch (t: Throwable) {
             // Catch Throwable to handle Errors like StackOverflowError from native calls
-            logger.e(t) { "Failed to get board_descr via BrainFlow: ${t.message}. Falling back to defaults for synthetic board." }
-            // Provide a safe fallback based on BrainFlow synthetic board known description
-            val eegNames = "Fz,C3,Cz,C4,Pz,PO7,Oz,PO8,F5,F7,F3,F1,F2,F4,F6,F8"
-            mapOf<String, Any?>(
-                "name" to "Synthetic",
-                "num_rows" to 32,
-                "sampling_rate" to 250,
-                "timestamp_channel" to 30,
-                "eeg_channels" to (1..16).toList(),
-                "eeg_names" to eegNames,
-                "gyro_channels" to (20..22).toList(),
-                "accel_channels" to (17..19).toList(),
-                "ecg_channels" to (1..16).toList(),
-                "emg_channels" to (1..16).toList(),
-                "eog_channels" to (1..16).toList(),
-                "ppg_channels" to listOf(24, 25),
-                "eda_channels" to listOf(23),
-                "resistance_channels" to listOf(27, 28),
-                "battery_channel" to 29,
-                "temperature_channels" to listOf(26),
-                "package_num_channel" to 0,
-                "marker_channel" to 31
-            )
+            if (!forceFallback) {
+                logger.e(t) { "Failed to get board_descr via BrainFlow: ${t.message}. Falling back to defaults for synthetic board." }
+            }
+            syntheticBoardDescr()
         }
     }
 
