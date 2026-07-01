@@ -11,15 +11,20 @@
 
 ## Overview
 
-**NeuroRook** is a neurofeedback suite built on top of the [BrainFlow library](https://brainflow.org/). The project is in active development, with a primary focus on desktop (JVM) support and planned expansion to Android and iOS platforms. NeuroRook aims to provide a robust, extensible, and user-friendly environment for neurofeedback research and applications.
+**NeuroRook** is a desktop-first neurofeedback suite built on top of the [BrainFlow library](https://brainflow.org/). The project is in active development, with a primary focus on the JVM desktop experience and planned expansion to Android and iOS. NeuroRook aims to provide a robust, extensible, and user-friendly environment for neurofeedback research and biosignal applications.
 
 <p align="center">
   <img src="./documentation/main_window.png" width="900" alt="NeuroRook desktop main window screenshot">
 </p>
 
+<p align="center">
+  <em>Current desktop main window on the 0.6.0 line.</em>
+</p>
+
 ---
 
 ## Features
+- **Desktop-First Workflow**: Fast iteration on the JVM target while shared code continues to mature.
 - **Kotlin Multiplatform**: Shared business logic across JVM, Android, and iOS.
 - **BrainFlow Integration**: Leverages BrainFlow for hardware-agnostic EEG and biosignal acquisition.
 - **Modular Architecture**: Designed for extensibility and maintainability.
@@ -28,7 +33,7 @@
 ---
 
 ## Project Structure
-- [`composeApp/`](./composeApp/src): Shared codebase for Compose Multiplatform applications.
+- [`composeApp/`](./composeApp/src): Compose Multiplatform desktop app and shared UI entry points.
 - [`iosApp/`](./iosApp/iosApp): Entry point and UI for iOS applications (SwiftUI).
 - [`androidApp/`](./androidApp/src): Android application module (planned).
 - [`hardwareBackend/`](./hardwareBackend/src): Hardware abstraction and BrainFlow integration.
@@ -46,7 +51,7 @@
 ### Build Instructions
 
 #### Desktop (JVM)
-*Note: Desktop support is under active development.*
+*Note: The desktop app is the primary development target.*
 
 - **Build:**
   ```sh
